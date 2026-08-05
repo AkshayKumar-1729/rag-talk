@@ -1,0 +1,1234 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Open-Book Exam — why AI makes things up</title>
+
+<!-- Loaded non-blocking on purpose: this deck is presented offline. If the venue network is
+     absent or sitting behind a captive portal, the page must render instantly rather than
+     stall waiting on a stylesheet. System fallbacks are metrically narrower, so nothing
+     overflows the fixed canvas when these never arrive. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+
+<style>
+:root{
+  --bg:#E9EDF1; --surface:#FFFFFF; --surface-2:#F3F6F9; --surface-3:#ECF0F5;
+  --ink:#13202B; --ink-soft:#516070; --ink-faint:#8A98A6; --line:#D6DEE6; --line-2:#E4EAF0;
+  --cobalt:#2F6BFF; --cobalt-ink:#1A4ED8; --cobalt-soft:#E4ECFF;
+  --amber:#D98518; --amber-ink:#9A5A00; --amber-soft:#FBEEDA;
+  --teal:#0E9C8B; --teal-soft:#DBF3EF;
+  --coral:#E5484D; --coral-soft:#FBE3E4;
+  --violet:#7A5AF8; --violet-soft:#ECE7FF;
+  --shadow:0 1px 2px rgba(19,32,43,.06),0 8px 24px rgba(19,32,43,.06);
+  --shadow-sm:0 1px 2px rgba(19,32,43,.08);
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --disp:"Space Grotesk",system-ui,sans-serif;
+  /* Hairlines are set in JS, not here. The whole card system rests on 1px borders,
+     and on a 1024x768 projector the canvas scales to 0.8 — a 1px border becomes
+     0.8 device px, which shimmers or drops out entirely. fit() bumps this. */
+  --line-w:1.5px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg)}
+body{font-family:var(--disp);color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.5}
+
+/* ── The canvas ────────────────────────────────────────────────────────────
+   Fixed 1280x720, scaled to fit and centred. Venue projectors are routinely
+   1280x800 or still 4:3; a fluid layout would make every type size a surprise
+   at showtime. Letterboxing is the price of knowing exactly what appears. */
+#stage{position:fixed;inset:0;display:grid;place-items:center;overflow:hidden}
+#canvas{width:1280px;height:720px;position:relative;transform-origin:center center;
+  background:var(--bg);overflow:hidden}
+
+.slide{position:absolute;inset:0;padding:46px 68px 40px;display:none;flex-direction:column}
+.slide.on{display:flex;animation:rise .32s ease both}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* Fragments reveal by opacity only, so the layout never reflows mid-build — the room sees
+   things appear, not the slide re-flow around them. pointer-events is off until revealed:
+   an invisible element is still clickable, and slide 15's lab link lives inside a fragment. */
+.f{opacity:0;transform:translateY(8px);transition:opacity .34s ease,transform .34s ease;pointer-events:none}
+.f.show{opacity:1;transform:none;pointer-events:auto}
+
+/* ── Shared type ── */
+.eyebrow{font-family:var(--mono);font-size:13px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--cobalt-ink);font-weight:600;margin:0 0 6px}
+.eyebrow.faint{color:var(--ink-faint)}
+h1.big{font-size:78px;line-height:1.04;font-weight:700;letter-spacing:-.025em;margin:0}
+h1.big .soft{color:var(--ink-faint)}
+h1.big .beam{color:var(--cobalt)}
+h1.big .bad{color:var(--coral)}
+h1.big .good{color:var(--teal)}
+h2.hd{font-size:46px;line-height:1.08;font-weight:700;letter-spacing:-.022em;margin:0 0 14px}
+h2.hd .beam{color:var(--cobalt)} h2.hd .bad{color:var(--coral)} h2.hd .good{color:var(--teal)}
+.sub{font-size:21px;line-height:1.45;color:var(--ink-soft);margin:0;max-width:30ch}
+.sub b{color:var(--ink);font-weight:600}
+.mid{flex:1;display:flex;align-items:center;min-height:0}
+.center{justify-content:center;text-align:center;flex-direction:column;gap:26px}
+
+/* ── Split archetype ── */
+.split{display:grid;grid-template-columns:520px 1fr;gap:58px;align-items:center;width:100%}
+.split.rev{grid-template-columns:1fr 520px}
+.visual{position:relative;width:520px;height:520px;border-radius:20px;overflow:hidden;
+  background:var(--surface);border:var(--line-w) solid var(--line);box-shadow:var(--shadow)}
+.visual svg.vfall{position:absolute;inset:0;width:100%;height:100%;display:block}
+.visual img.vimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+
+/* ── Cards, notes, pills — the lab's idioms, sized up for a projector ── */
+.card{background:var(--surface);border:var(--line-w) solid var(--line);border-radius:16px;
+  box-shadow:var(--shadow);padding:22px 24px}
+.card h3{margin:0 0 8px;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.card p{margin:0;font-size:16.5px;line-height:1.5;color:var(--ink-soft)}
+.card .top{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+.card.accent{border-left:4px solid var(--line)}
+.card.coral{border-left-color:var(--coral)} .card.amber{border-left-color:var(--amber)}
+.card.violet{border-left-color:var(--violet)} .card.teal{border-left-color:var(--teal)}
+.card.cobalt{border-left-color:var(--cobalt)}
+
+.note{padding:16px 20px;border-left:4px solid var(--amber);background:var(--amber-soft);
+  border-radius:0 12px 12px 0;font-size:18px;line-height:1.5;color:#5b3d0e}
+.note b{color:var(--amber-ink);font-weight:600}
+.note.cobalt{border-left-color:var(--cobalt);background:var(--cobalt-soft);color:#1c356e}
+.note.cobalt b{color:var(--cobalt-ink)}
+.note.teal{border-left-color:var(--teal);background:var(--teal-soft);color:#0a6b5f}
+.note.teal b{color:var(--teal);font-weight:600}
+.note.small{font-size:16px;padding:13px 17px}
+
+.pill{display:inline-block;font-family:var(--mono);font-size:11.5px;font-weight:600;
+  padding:4px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.05em}
+.pill.coral{background:var(--coral-soft);color:var(--coral)}
+.pill.teal{background:var(--teal-soft);color:var(--teal)}
+.pill.amber{background:var(--amber-soft);color:var(--amber-ink)}
+.pill.cobalt{background:var(--cobalt-soft);color:var(--cobalt-ink)}
+.pill.violet{background:var(--violet-soft);color:var(--violet)}
+.pill.grey{background:var(--surface-3);color:var(--ink-faint)}
+.cite{font-family:var(--mono);font-size:12px;background:var(--teal-soft);color:var(--teal);
+  padding:2px 8px;border-radius:6px;font-weight:600}
+
+.stat{font-family:var(--mono);font-weight:600;letter-spacing:-.02em;line-height:1}
+.dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+
+.chips{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{font-family:var(--mono);font-size:14px;font-weight:600;padding:8px 14px;border-radius:20px;
+  border:var(--line-w) solid var(--line);background:var(--surface-2);color:var(--ink-soft)}
+.chip.on{border-color:var(--cobalt);background:var(--cobalt-soft);color:var(--cobalt-ink)}
+.arrow{color:var(--ink-faint);font-size:19px}
+
+.rows{display:flex;flex-direction:column;gap:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+
+/* dot-grid: the one texture the lab uses */
+.dotfield{background:radial-gradient(circle at 1px 1px,rgba(19,32,43,.09) 1px,transparent 0) 0 0/22px 22px}
+
+/* ── Slide 14: a faithful copy of the lab's own tab bar ── */
+.labtabs{display:flex;gap:6px;border-bottom:var(--line-w) solid var(--line);padding-bottom:0;flex-wrap:wrap}
+.labtab{font-size:16px;font-weight:600;color:var(--ink-soft);padding:12px 12px 14px;
+  border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:baseline;gap:8px;
+  white-space:nowrap;border-radius:8px 8px 0 0}
+.labtab .n{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink-faint)}
+.labtab.active{color:var(--ink);border-bottom-color:var(--cobalt)}
+.labtab.active .n{color:var(--cobalt)}
+
+/* ── HUD ── */
+#prog{position:fixed;top:0;left:0;height:3px;background:var(--cobalt);width:0;
+  transition:width .3s ease;z-index:40}
+#hud{position:fixed;right:16px;bottom:12px;font-family:var(--mono);font-size:12px;
+  color:var(--ink-faint);z-index:40;user-select:none}
+#hint{position:fixed;left:16px;bottom:12px;font-family:var(--mono);font-size:12px;
+  color:var(--ink-faint);z-index:40;transition:opacity .6s ease}
+
+#blank{position:fixed;inset:0;background:#000;z-index:90;display:none}
+
+/* ── Overview: titles, not thumbnails. A presenter jumping around needs to read
+      where they're going, and scaled clones are a rendering risk for no gain. ── */
+#ov{position:fixed;inset:0;background:rgba(233,237,241,.97);z-index:70;display:none;
+  padding:46px 54px;overflow:auto}
+#ov h4{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-faint);margin:0 0 18px;font-weight:600}
+#ovgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.ovcard{background:var(--surface);border:var(--line-w) solid var(--line);border-radius:12px;padding:14px 16px;
+  cursor:pointer;transition:.14s;text-align:left}
+.ovcard:hover{border-color:var(--cobalt);background:var(--cobalt-soft)}
+.ovcard.cur{border-color:var(--cobalt);box-shadow:0 0 0 3px var(--cobalt-soft)}
+.ovcard .n{font-family:var(--mono);font-size:11px;color:var(--ink-faint);font-weight:600}
+.ovcard .t{font-size:15px;font-weight:600;margin-top:4px;line-height:1.3}
+
+/* ── Speaker notes ── */
+#notes{position:fixed;left:0;right:0;bottom:0;height:40vh;background:#101c26;color:#dfe7ee;
+  z-index:60;display:none;flex-direction:column;box-shadow:0 -10px 40px rgba(19,32,43,.28)}
+#notes .nhead{display:flex;justify-content:space-between;align-items:center;padding:11px 22px;
+  border-bottom:1px solid #22323f;font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:#7f95a6;font-weight:600;flex:0 0 auto}
+#notes .nbody{padding:16px 22px 22px;overflow:auto;font-size:16px;line-height:1.62}
+#notes .nbody p{margin:0 0 11px} #notes .nbody p:last-child{margin:0}
+#notes .nbody b{color:#fff} #notes .nbody em{color:#9fd0ff;font-style:normal}
+#notes .nbody .do{color:#ffd08a}
+#notes .nbody .src{color:#7f95a6;font-size:14px}
+/* The long stories (slides 02, 03) open with a beat list rather than prose. Prose is
+   for prep; on stage the presenter glances down for two seconds and needs the skeleton,
+   which is why the list sits at the top where it can't fall below the 40vh fold. */
+#notes .nbody .beat{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:#7f95a6;font-weight:600;margin:0 0 8px}
+#notes .nbody ol{margin:0 0 13px;padding-left:20px}
+#notes .nbody ol li{margin:0 0 5px}
+#notes .nbody .line{color:#9fd0ff;border-left:2px solid #2c4a5e;padding-left:12px}
+
+/* ── Help ── */
+#help{position:fixed;inset:0;background:rgba(19,32,43,.62);z-index:80;display:none;
+  place-items:center}
+#help .box{background:var(--surface);border-radius:16px;padding:26px 30px;box-shadow:var(--shadow);
+  min-width:380px}
+#help h4{margin:0 0 14px;font-family:var(--mono);font-size:12px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--ink-faint);font-weight:600}
+#help table{border-collapse:collapse;font-size:15px}
+#help td{padding:5px 0} #help td:first-child{padding-right:26px}
+#help kbd{font-family:var(--mono);font-size:12.5px;background:var(--surface-2);
+  border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:2px 7px;font-weight:600}
+
+.say{display:none}
+
+@media print{
+  #stage,#hud,#hint,#prog,#ov,#notes,#blank,#help{display:none!important}
+  html,body{overflow:visible;height:auto;background:#fff}
+  #printout{display:block!important}
+}
+#printout{display:none}
+#printout .pslide{page-break-after:always;padding:0 0 30px;border-bottom:1px solid #ccc;margin-bottom:30px}
+#printout .pn{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#666}
+#printout h3{font-size:22px;margin:6px 0 4px}
+#printout .pscreen{font-size:14px;color:#444;margin:0 0 12px;font-style:italic}
+#printout .pbody{font-size:14.5px;line-height:1.6}
+#printout .pbody .do{color:#8a5a00}
+#printout .pbody .src{color:#666;font-size:13px}
+#printout .pbody .beat{font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:#666;margin:0 0 6px}
+#printout .pbody ol{margin:0 0 12px;padding-left:20px}
+#printout .pbody ol li{margin:0 0 4px}
+#printout .pbody .line{border-left:2px solid #ccc;padding-left:10px;font-style:italic}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div id="prog"></div>
+<div id="stage"><div id="canvas">
+
+<!-- ══ 00 · Title ══════════════════════════════════════════════════════════ -->
+<section class="slide dotfield" data-title="Title">
+  <div class="mid center">
+    <p class="eyebrow">Retrieval-Augmented Generation · an explainer</p>
+    <h1 class="big">The <span class="beam">Open-Book</span> Exam</h1>
+    <p class="sub" style="max-width:44ch;font-size:24px">Why AI makes things up — and how RAG quietly fixes it.</p>
+  </div>
+  <div style="font-family:var(--mono);font-size:13px;color:var(--ink-faint);text-align:center">
+    press <b style="color:var(--ink-soft)">→</b> to begin · <b style="color:var(--ink-soft)">?</b> for keys
+  </div>
+  <div class="say"><p>Hold here while the room settles. Nothing to say yet.</p></div>
+</section>
+
+<!-- ══ 01 · The hook ═══════════════════════════════════════════════════════ -->
+<section class="slide" data-title="The hook">
+  <p class="eyebrow">01 · the uncomfortable question</p>
+  <div class="mid center" style="gap:34px">
+    <h1 class="big">AI sounds brilliant.<br><span class="f bad">That's the problem.</span></h1>
+    <div class="f" style="width:640px">
+      <svg viewBox="0 0 640 130" style="width:100%;display:block">
+        <text x="0" y="16" font-family="IBM Plex Mono,monospace" font-size="13" font-weight="600"
+              letter-spacing="1.6" fill="#8A98A6">CONFIDENCE</text>
+        <rect x="0" y="28" width="500" height="14" rx="7" fill="#ECF0F5"></rect>
+        <rect x="0" y="28" width="500" height="14" rx="7" fill="#2F6BFF"></rect>
+        <text x="520" y="40" font-family="IBM Plex Mono,monospace" font-size="16" font-weight="600" fill="#13202B">100%</text>
+        <text x="0" y="88" font-family="IBM Plex Mono,monospace" font-size="13" font-weight="600"
+              letter-spacing="1.6" fill="#8A98A6">ACCURACY</text>
+        <rect x="0" y="100" width="500" height="14" rx="7" fill="#ECF0F5"></rect>
+        <text x="520" y="112" font-family="IBM Plex Mono,monospace" font-size="16" font-weight="600" fill="#E5484D">?</text>
+      </svg>
+    </div>
+  </div>
+  <div class="say">
+    <p>We've all had the moment. You ask an AI a question, and back comes an answer — instant, fluent, confident. It feels like magic. So let me ask the uncomfortable question this whole session is built around: <em>how do you actually know it's telling you the truth?</em></p>
+    <p>Here's the thing most people never get told. A language model's job is not to be <b>right</b>. Its job is to sound <b>plausible</b> — to produce the next words that fit. Ninety-something percent of the time, "sounds right" and "is right" happen to be the same thing. Today is about the other times — and the surprisingly elegant fix that's quietly running inside nearly every AI tool you already trust.</p>
+    <p class="do"><b>Do:</b> show of hands — "who here has been confidently told something by an AI that turned out to be flat wrong?" Most hands go up. Let people laugh. "Great — you're all already experts in the problem. Let's give it a name."</p>
+  </div>
+</section>
+
+<!-- ══ 02 · The lawyer ═════════════════════════════════════════════════════ -->
+<section class="slide" data-title="Story 1 — the lawyer">
+  <p class="eyebrow">02 · story one</p>
+  <div class="mid">
+    <div class="split">
+      <div class="visual">
+        <svg class="vfall" viewBox="0 0 520 520">
+          <rect width="520" height="520" fill="#F3F6F9"></rect>
+          <g>
+            <g transform="translate(46,96)">
+              <rect width="128" height="160" rx="9" fill="#fff" stroke="#D6DEE6"></rect>
+              <rect x="16" y="22" width="96" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="40" width="76" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="58" width="88" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="76" width="60" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <path d="M30 44 L98 116 M98 44 L30 116" stroke="#E5484D" stroke-width="7" stroke-linecap="round" opacity=".85"></path>
+            </g>
+            <g transform="translate(196,96)">
+              <rect width="128" height="160" rx="9" fill="#fff" stroke="#D6DEE6"></rect>
+              <rect x="16" y="22" width="88" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="40" width="96" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="58" width="66" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="76" width="84" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <path d="M30 44 L98 116 M98 44 L30 116" stroke="#E5484D" stroke-width="7" stroke-linecap="round" opacity=".85"></path>
+            </g>
+            <g transform="translate(346,96)">
+              <rect width="128" height="160" rx="9" fill="#fff" stroke="#D6DEE6"></rect>
+              <rect x="16" y="22" width="72" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="40" width="96" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="58" width="80" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="76" width="58" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <path d="M30 44 L98 116 M98 44 L30 116" stroke="#E5484D" stroke-width="7" stroke-linecap="round" opacity=".85"></path>
+            </g>
+            <g transform="translate(46,286)">
+              <rect width="128" height="160" rx="9" fill="#fff" stroke="#D6DEE6"></rect>
+              <rect x="16" y="22" width="94" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="40" width="64" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="58" width="90" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="76" width="72" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <path d="M30 44 L98 116 M98 44 L30 116" stroke="#E5484D" stroke-width="7" stroke-linecap="round" opacity=".85"></path>
+            </g>
+            <g transform="translate(196,286)">
+              <rect width="128" height="160" rx="9" fill="#fff" stroke="#D6DEE6"></rect>
+              <rect x="16" y="22" width="78" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="40" width="92" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="58" width="70" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="76" width="86" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <path d="M30 44 L98 116 M98 44 L30 116" stroke="#E5484D" stroke-width="7" stroke-linecap="round" opacity=".85"></path>
+            </g>
+            <g transform="translate(346,286)">
+              <rect width="128" height="160" rx="9" fill="#fff" stroke="#D6DEE6"></rect>
+              <rect x="16" y="22" width="86" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="40" width="70" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="58" width="94" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <rect x="16" y="76" width="62" height="7" rx="3.5" fill="#E4EAF0"></rect>
+              <path d="M30 44 L98 116 M98 44 L30 116" stroke="#E5484D" stroke-width="7" stroke-linecap="round" opacity=".85"></path>
+            </g>
+          </g>
+          <text x="260" y="52" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="13"
+                font-weight="600" letter-spacing="2.4" fill="#8A98A6">SIX CITED PRECEDENTS</text>
+          <text x="260" y="490" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="14"
+                font-weight="600" letter-spacing="2" fill="#E5484D">NONE OF THEM EXISTED</text>
+        </svg>
+        <img class="vimg" data-img="lawyer" alt="">
+      </div>
+      <div>
+        <h2 class="hd"><span style="font-family:var(--mono);letter-spacing:-.03em">6</span> court cases cited.<br>
+          <span class="bad"><span style="font-family:var(--mono);letter-spacing:-.03em">0</span> of them existed.</span></h2>
+        <p class="sub" style="max-width:26ch">A federal filing, built entirely on precedents that were never written.</p>
+        <div class="note f" style="margin-top:26px">He got nervous and asked ChatGPT
+          <b>"are these cases real?"</b><br>It said <b>yes</b>.</div>
+        <p class="f" style="margin:18px 0 0"><span class="pill grey">Mata v. Avianca · S.D.N.Y. · June 2023</span></p>
+      </div>
+    </div>
+  </div>
+  <div class="say">
+    <p class="beat">The five beats · ~2½ min</p>
+    <ol>
+      <li>An ordinary case — a man, an airline, a serving cart into the knee.</li>
+      <li>A thirty-year veteran lawyer uses ChatGPT like a search engine → six perfect cases.</li>
+      <li>He asks it <b>"are these real?"</b> → it says <b>yes</b>. <em>(the gasp — stop here)</em></li>
+      <li>All six are fabricated. The judge asks for copies; they double down.</li>
+      <li>$5,000 fine + letters to the real judges. Using AI wasn't the crime — <b>not checking was</b>.</li>
+    </ol>
+    <p>It starts as boring as a case can be. A man named Roberto Mata is flying to New York on the airline Avianca, and a metal serving cart rolls into his knee. He sues for the injury. Completely ordinary.</p>
+    <p>His lawyer is Steven Schwartz — a New York attorney with thirty years of experience. Not a kid, not reckless. Avianca's team files a motion to get the case thrown out, and Schwartz has to write a rebuttal citing past cases that support him. And for the first time, he decides to use this new tool everyone's talking about — ChatGPT — as his research assistant. In his head, it's basically a smarter Google.</p>
+    <p>He asks it for cases that back his argument, and it delivers beautifully. Six past court decisions — full names, judges, quotes, citation numbers, the works. Things like <em>Varghese v. China Southern Airlines</em>. It looks perfect. He drops them into his brief and files it with a federal court.</p>
+    <p>Now here's the beat that makes the whole story. Somewhere in there, Schwartz gets a flicker of doubt. So he does what feels responsible: he asks ChatGPT directly — <b>"are these cases real?"</b> And ChatGPT says <b>yes</b>. They're real, you can find them in the legal databases. He even asks it to produce the full text, and it generates that too. He's reassured. He trusts it.</p>
+    <p>Then it unravels. Avianca's lawyers go to cite these cases and can't find a single one. The judge can't find them either. Because <b>none of them ever existed</b> — ChatGPT invented all six from thin air, complete with fake quotes and fake internal citations. Judge P. Kevin Castel orders Schwartz's side to produce copies of the cases. And instead of coming clean, they submit… the fabricated excerpts ChatGPT gave them. They double down.</p>
+    <p>June 22, 2023: the judge fines the lawyers <b>$5,000</b>, and — this is the part that stings most — orders them to write a letter to each real judge whose name had been forged onto a fake opinion. Mata's actual injury case gets dismissed.</p>
+    <p>And the judge's message is the sharp lesson: the problem was <em>not</em> that they used AI. The problem was that they never checked, and then wouldn't admit it. <b>The tool didn't ruin them. Their trust in it did.</b></p>
+    <p class="line">"He didn't just get six fake cases. When he double-checked, the AI looked him in the eye and confirmed its own fiction."</p>
+    <p class="do"><b>Do:</b> land beat 3 and <em>stop</em>. Two full seconds of silence before "all six were fake" — that pause is where the room works out that the check itself was worthless. Everything after it is just paperwork.</p>
+    <p class="src"><b>Ground it:</b> Mata v. Avianca, Inc., U.S. District Court (S.D.N.Y.), decided June 22 2023, Judge P. Kevin Castel. Six fabricated cases (e.g. Varghese v. China Southern Airlines, Shaboon v. EgyptAir). ChatGPT falsely confirmed the cases were real and generated fake full texts on request. $5,000 sanction plus letters to the falsely-named judges; the underlying injury claim dismissed as time-barred. Sources: Wikipedia "Mata v. Avianca"; CBC; Forbes; the court's sanctions opinion.</p>
+  </div>
+</section>
+
+<!-- ══ 03 · The airline ════════════════════════════════════════════════════ -->
+<section class="slide" data-title="Story 2 — the airline">
+  <p class="eyebrow">03 · story two</p>
+  <div class="mid">
+    <div class="split rev">
+      <div>
+        <h2 class="hd">The chatbot invented<br>a refund policy.</h2>
+        <p class="sub" style="max-width:27ch;font-size:23px"><b>A court made the airline honour it.</b></p>
+        <div class="note f" style="margin-top:26px">The airline's defence: the chatbot was a
+          <b>"separate legal entity"</b> responsible for its own words.<br>
+          <span style="opacity:.8">The tribunal called that a "remarkable submission."</span></div>
+        <p class="f" style="margin:18px 0 0"><span class="pill grey">Moffatt v. Air Canada · B.C. Tribunal · Feb 2024</span></p>
+      </div>
+      <div class="visual">
+        <svg class="vfall" viewBox="0 0 520 520">
+          <rect width="520" height="520" fill="#F3F6F9"></rect>
+          <!-- user bubble -->
+          <g transform="translate(146,74)">
+            <rect width="316" height="80" rx="16" fill="#fff" stroke="#D6DEE6"></rect>
+            <rect x="22" y="26" width="200" height="8" rx="4" fill="#E4EAF0"></rect>
+            <rect x="22" y="46" width="150" height="8" rx="4" fill="#E4EAF0"></rect>
+          </g>
+          <text x="462" y="172" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="11.5"
+                font-weight="600" letter-spacing="1.4" fill="#8A98A6">CUSTOMER</text>
+          <!-- bot bubble -->
+          <g transform="translate(58,206)">
+            <rect width="352" height="120" rx="16" fill="#FBE3E4" stroke="#E5484D" stroke-opacity=".45"></rect>
+            <rect x="24" y="28" width="256" height="8" rx="4" fill="#E5484D" fill-opacity=".28"></rect>
+            <rect x="24" y="50" width="292" height="8" rx="4" fill="#E5484D" fill-opacity=".28"></rect>
+            <rect x="24" y="72" width="188" height="8" rx="4" fill="#E5484D" fill-opacity=".28"></rect>
+          </g>
+          <text x="58" y="346" font-family="IBM Plex Mono,monospace" font-size="11.5"
+                font-weight="600" letter-spacing="1.4" fill="#E5484D">SUPPORT BOT</text>
+          <!-- stamp -->
+          <g transform="translate(150,392) rotate(-7)">
+            <rect width="228" height="52" rx="9" fill="none" stroke="#E5484D" stroke-width="3"></rect>
+            <text x="114" y="34" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="17"
+                  font-weight="600" letter-spacing="2.6" fill="#E5484D">NO SUCH POLICY</text>
+          </g>
+        </svg>
+        <img class="vimg" data-img="airline" alt="">
+      </div>
+    </div>
+  </div>
+  <div class="say">
+    <p class="beat">The five beats · ~2½ min</p>
+    <ol>
+      <li>A grieving grandson books a funeral flight; asks the airline's chatbot about bereavement fares.</li>
+      <li>The bot invents a policy — "pay now, claim within 90 days" — and <b>links the real page, which says the opposite</b>.</li>
+      <li>He books ~CA$1,630, flies, applies with the death certificate → refused.</li>
+      <li>Air Canada's defence: the chatbot is its own <b>"separate legal entity."</b> <em>(the laugh)</em></li>
+      <li>Tribunal: a "remarkable submission" → Air Canada pays. <b>When your AI talks, it speaks for you.</b></li>
+    </ol>
+    <p>This one you open on the human, because it's genuinely sad. Jake Moffatt's grandmother dies. That same day, grieving, he goes to Air Canada's website to book a flight from Vancouver to Toronto for the funeral.</p>
+    <p>He's not sure how bereavement fares work — the discounted tickets airlines offer when there's a death in the family — so he asks the website's chatbot. The bot tells him, clearly and confidently: go ahead and book at the normal price now, then apply for the bereavement discount afterward, within 90 days. And here's the almost-comic detail — the bot even <b>links to Air Canada's real bereavement policy page</b> to back itself up.</p>
+    <p>Except that page says the exact opposite. Air Canada's actual policy is that you <em>cannot</em> claim a bereavement fare retroactively once you've flown. The bot contradicted the very source it cited. It invented a policy that didn't exist.</p>
+    <p>Moffatt, trusting it, books full-fare — around <b>CA$1,630</b> round trip. He flies, attends the funeral, and then, within the window the bot promised, submits his refund request with his grandmother's death certificate. Air Canada refuses. They offer him a $200 voucher as a consolation. He says no — and takes them to a small-claims tribunal.</p>
+    <p>Now the jaw-dropper. Air Canada's legal defence is that it can't be held responsible for what its chatbot said — arguing the bot was, in effect, <em>"a separate legal entity responsible for its own actions."</em> Translation: don't blame us, blame the bot.</p>
+    <p>The tribunal member, Christopher Rivers, calls that a <b>"remarkable submission,"</b> and lays down the point that made this case famous: it should be obvious a company is responsible for everything on its own website — it makes no difference whether the information comes from a static page or a chatbot. He finds Air Canada guilty of negligent misrepresentation and, in February 2024, orders it to pay Moffatt about <b>CA$812</b>.</p>
+    <p>Small money. Huge precedent. It became the first clear ruling that when your AI speaks to a customer, <b>it speaks for you — legally</b>. "Confidently wrong" isn't a cute quirk. It's a liability with your name on it.</p>
+    <p class="line">"Air Canada's actual argument in court was: don't blame us, blame the bot. The tribunal's answer was: the bot is you."</p>
+    <p class="do"><b>Do:</b> beat 4 is the laugh — deliver it deadpan and wait for it. The tribunal's answer lands twice as hard once the room has already picked a side.</p>
+    <p class="src"><b>Ground it:</b> Moffatt v. Air Canada, B.C. Civil Resolution Tribunal, February 2024, member Christopher Rivers. Chatbot fabricated a retroactive 90-day bereavement refund while linking the real policy page that contradicted it; ~CA$1,630 in fares paid, $200 voucher offered and declined; negligent misrepresentation found, ~CA$812 awarded. Sources: CBC News; Forbes; the tribunal decision.</p>
+  </div>
+</section>
+
+<!-- ══ 04 · Frozen in time ═════════════════════════════════════════════════ -->
+<section class="slide" data-title="Story 3 — frozen in time">
+  <p class="eyebrow">04 · story three</p>
+  <div class="mid">
+    <div class="split">
+      <div class="visual">
+        <svg class="vfall" viewBox="0 0 520 520">
+          <rect width="520" height="520" fill="#F3F6F9"></rect>
+          <text x="44" y="106" font-family="IBM Plex Mono,monospace" font-size="12" font-weight="600"
+                letter-spacing="1.6" fill="#1A4ED8">WHAT IT LEARNED</text>
+          <text x="476" y="106" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="12"
+                font-weight="600" letter-spacing="1.6" fill="#8A98A6">EVERYTHING SINCE</text>
+          <!-- solid past -->
+          <line x1="44" y1="150" x2="286" y2="150" stroke="#2F6BFF" stroke-width="5" stroke-linecap="round"></line>
+          <circle cx="80"  cy="150" r="8" fill="#2F6BFF"></circle>
+          <circle cx="140" cy="150" r="8" fill="#2F6BFF"></circle>
+          <circle cx="200" cy="150" r="8" fill="#2F6BFF"></circle>
+          <circle cx="260" cy="150" r="8" fill="#2F6BFF"></circle>
+          <!-- cutoff -->
+          <line x1="286" y1="118" x2="286" y2="182" stroke="#13202B" stroke-width="3" stroke-linecap="round"></line>
+          <text x="286" y="208" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="12.5"
+                font-weight="600" letter-spacing="1.8" fill="#13202B">CUTOFF</text>
+          <!-- dashed future -->
+          <line x1="286" y1="150" x2="476" y2="150" stroke="#8A98A6" stroke-width="4"
+                stroke-dasharray="9 10" stroke-linecap="round" opacity=".55"></line>
+          <circle cx="330" cy="150" r="8" fill="none" stroke="#8A98A6" stroke-width="2.5" opacity=".55"></circle>
+          <circle cx="386" cy="150" r="8" fill="none" stroke="#8A98A6" stroke-width="2.5" opacity=".55"></circle>
+          <circle cx="442" cy="150" r="8" fill="none" stroke="#8A98A6" stroke-width="2.5" opacity=".55"></circle>
+          <!-- the connection that was never made: a dashed reach upward, stopped by a blocked badge -->
+          <line x1="260" y1="308" x2="260" y2="346" stroke="#E5484D" stroke-width="3"
+                stroke-dasharray="7 8" stroke-linecap="round" opacity=".7"></line>
+          <circle cx="260" cy="280" r="20" fill="#fff" stroke="#E5484D" stroke-width="2.5"></circle>
+          <path d="M252 272 L268 288 M268 272 L252 288" stroke="#E5484D" stroke-width="3" stroke-linecap="round"></path>
+          <!-- your world -->
+          <g transform="translate(90,346)">
+            <rect width="340" height="118" rx="16" fill="#ECE7FF" stroke="#7A5AF8" stroke-opacity=".5"></rect>
+            <text x="170" y="46" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="13"
+                  font-weight="600" letter-spacing="2.4" fill="#7A5AF8">YOUR WORLD</text>
+            <text x="170" y="78" text-anchor="middle" font-family="Space Grotesk,system-ui,sans-serif"
+                  font-size="16" fill="#516070">policies · files · orders · this quarter</text>
+          </g>
+        </svg>
+        <img class="vimg" data-img="frozen" alt="">
+      </div>
+      <div>
+        <h2 class="hd">It stopped learning<br>on a date.</h2>
+        <p class="sub" style="max-width:27ch;font-size:23px">And it never read <b>your</b> files at all.</p>
+        <div class="note cobalt f" style="margin-top:26px">A brilliant colleague who slipped into a coma
+          two years ago, woke up this morning — and is <b>far too proud</b> to admit there's a gap.</div>
+      </div>
+    </div>
+  </div>
+  <div class="say">
+    <p>The third failure is quieter, but it touches everyone. Every model has a <b>knowledge cutoff</b> — a date after which it simply knows nothing. Ask it about last week's news, today's price of something, or your company's numbers from this quarter, and it will either shrug — or worse, cheerfully invent an answer from the last thing it happened to remember.</p>
+    <p>Picture a brilliant colleague who slipped into a coma two years ago, woke up this morning, and is far too proud to admit there's a gap in what they know. That's your model on anything recent.</p>
+    <p>And there's a second half: it has never read a single document from <em>your</em> world. Not your policies, not your files, not your customer's order. It memorised a slice of the public internet up to a date. <b>It doesn't know you.</b></p>
+    <p class="do"><b>Do:</b> "Try it sometime — ask an older model who won a championship that happened after its cutoff. Watch it guess with a straight face."</p>
+  </div>
+</section>
+
+<!-- ══ 05 · Name the three problems ════════════════════════════════════════ -->
+<section class="slide" data-title="Made-up · Frozen · Blind">
+  <p class="eyebrow">05 · name the problem</p>
+  <h2 class="hd" style="margin-bottom:6px">Made-up. Frozen. Blind.</h2>
+  <p class="sub" style="max-width:60ch;margin-bottom:24px">Three clean names for what we just watched happen.</p>
+  <div class="mid" style="align-items:flex-start">
+    <div style="width:100%">
+      <div class="grid3">
+        <div class="card accent coral f">
+          <div class="top"><span class="dot" style="background:var(--coral)"></span>
+            <span class="pill coral">01</span></div>
+          <h3>Hallucination</h3>
+          <p>It makes things up — fluently, and with total confidence.</p>
+        </div>
+        <div class="card accent amber f">
+          <div class="top"><span class="dot" style="background:var(--amber)"></span>
+            <span class="pill amber">02</span></div>
+          <h3>Frozen knowledge</h3>
+          <p>It stops learning at its cutoff date and can't catch up on its own.</p>
+        </div>
+        <div class="card accent violet f">
+          <div class="top"><span class="dot" style="background:var(--violet)"></span>
+            <span class="pill violet">03</span></div>
+          <h3>Blind to your world</h3>
+          <p>It can't see private, recent, or organisation-specific information.</p>
+        </div>
+      </div>
+      <div class="f" style="margin-top:26px">
+        <svg viewBox="0 0 1144 26" style="width:100%;height:26px;display:block">
+          <path d="M40 2 L40 12 L560 12 L572 24 L584 12 L1104 12 L1104 2"
+                fill="none" stroke="#2F6BFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+        <p style="text-align:center;font-size:25px;font-weight:600;margin:12px 0 0;letter-spacing:-.015em">
+          Every one of these is a <span style="color:var(--cobalt)">knowledge problem</span>.</p>
+        <p style="text-align:center;font-size:19px;color:var(--ink-soft);margin:6px 0 0">
+          And knowledge problems have a knowledge solution.</p>
+      </div>
+    </div>
+  </div>
+  <div class="say">
+    <p>Let's put clean names on what we just saw, because these three are the entire reason the fix exists.</p>
+    <p><b>1. Hallucination</b> — it makes things up, fluently and confidently. The term isn't new — researchers have used it since around 2017 — but that lawyer story is what dragged it into everyday conversation.</p>
+    <p><b>2. Frozen knowledge</b> — it stops learning at its cutoff date and can't catch up on its own.</p>
+    <p><b>3. No access to your world</b> — it can't see private, recent, or organisation-specific information.</p>
+    <p>Notice something? Every one of these is a <b>knowledge problem</b>. It's not that the AI can't <em>reason</em> — it's that it doesn't have the right <em>information</em> in front of it. And knowledge problems have a knowledge solution.</p>
+  </div>
+</section>
+
+<!-- ══ 06 · Closed-book exam ═══════════════════════════════════════════════ -->
+<section class="slide" data-title="The closed-book exam">
+  <p class="eyebrow">06 · why it happens</p>
+  <div class="mid">
+    <div class="split rev">
+      <div>
+        <h2 class="hd">A genius student.<br>An exam.<br><span class="bad">No books allowed.</span></h2>
+        <p class="sub" style="max-width:28ch;margin-top:14px">They've read more than any human could in a
+          thousand lifetimes. But memory is fuzzy.</p>
+        <div class="note f" style="margin-top:24px">This student <b>never leaves it blank</b> and
+          <b>never says "I'm not sure."</b><br>
+          <span style="opacity:.85">That's a hallucination. It isn't lying — it's doing exactly what it was trained to do.</span></div>
+      </div>
+      <div class="visual">
+        <svg class="vfall" viewBox="0 0 520 520">
+          <rect width="520" height="520" fill="#F3F6F9"></rect>
+          <!-- desk -->
+          <rect x="40" y="356" width="440" height="14" rx="7" fill="#D6DEE6"></rect>
+          <rect x="86" y="370" width="16" height="86" rx="6" fill="#E4EAF0"></rect>
+          <rect x="418" y="370" width="16" height="86" rx="6" fill="#E4EAF0"></rect>
+          <!-- closed book, strapped -->
+          <g transform="translate(60,268)">
+            <rect width="176" height="88" rx="8" fill="#2F6BFF"></rect>
+            <rect y="8" width="176" height="72" rx="4" fill="#1A4ED8" opacity=".55"></rect>
+            <rect x="10" width="14" height="88" fill="#1A4ED8"></rect>
+            <rect x="74" y="-8" width="26" height="104" rx="5" fill="#13202B" opacity=".82"></rect>
+            <circle cx="87" cy="44" r="9" fill="#E9EDF1"></circle>
+          </g>
+          <!-- answer paper with confident handwriting -->
+          <g transform="translate(268,214)">
+            <rect width="180" height="142" rx="7" fill="#fff" stroke="#D6DEE6"></rect>
+            <path d="M20 32 q14 -12 28 0 t28 0 t28 0 t28 0 t28 0" fill="none" stroke="#516070" stroke-width="2.6" stroke-linecap="round"></path>
+            <path d="M20 58 q14 -12 28 0 t28 0 t28 0 t28 0" fill="none" stroke="#516070" stroke-width="2.6" stroke-linecap="round"></path>
+            <path d="M20 84 q14 -12 28 0 t28 0 t28 0 t28 0 t28 0" fill="none" stroke="#516070" stroke-width="2.6" stroke-linecap="round"></path>
+            <path d="M20 110 q14 -12 28 0 t28 0" fill="none" stroke="#516070" stroke-width="2.6" stroke-linecap="round"></path>
+          </g>
+          <!-- the student, kept deliberately small: the book is the subject, not the person -->
+          <circle cx="252" cy="150" r="30" fill="#13202B" opacity=".55"></circle>
+          <path d="M196 214 q56 -50 112 0 Z" fill="#13202B" opacity=".55"></path>
+          <g transform="translate(184,404)">
+            <rect width="152" height="34" rx="17" fill="#FBE3E4"></rect>
+            <text x="76" y="23" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="13"
+                  font-weight="600" letter-spacing="2.2" fill="#E5484D">CLOSED BOOK</text>
+          </g>
+        </svg>
+        <img class="vimg" data-img="closed" alt="">
+      </div>
+    </div>
+  </div>
+  <div class="say">
+    <p>Here's the most useful picture you'll take from today. Keep this one and you understand the whole field.</p>
+    <p>A language model is a student who studied the <em>entire internet</em> — then walked into an exam hall under one rule: <b>closed book.</b> No notes. No phone. Answer everything from memory.</p>
+    <p>Now — this student is genuinely astonishing. They've read more than any human could in a thousand lifetimes. But memory is fuzzy, and here's the trap: under pressure to fill in an answer, this student <b>never leaves it blank</b> and <b>never says "I'm not sure."</b> They write down their best-sounding guess — in gorgeous handwriting, with total confidence. <em>That's a hallucination.</em> It isn't lying. It's a brilliant student with no notes, doing what they were trained to do: produce a fluent answer.</p>
+    <p class="src"><b>Ground it:</b> researchers literally describe LLMs as "closed-book" systems that rely only on knowledge encoded in their weights (framing from the NVIDIA and Comet explainers on RAG).</p>
+  </div>
+</section>
+
+<!-- ══ 07 · Open the book ══════════════════════════════════════════════════ -->
+<section class="slide" data-title="The fix — open the book">
+  <p class="eyebrow">07 · the fix, in one move</p>
+  <div class="mid">
+    <div class="split">
+      <div class="visual">
+        <svg class="vfall" viewBox="0 0 520 520">
+          <rect width="520" height="520" fill="#F3F6F9"></rect>
+          <rect x="40" y="356" width="440" height="14" rx="7" fill="#D6DEE6"></rect>
+          <rect x="86" y="370" width="16" height="86" rx="6" fill="#E4EAF0"></rect>
+          <rect x="418" y="370" width="16" height="86" rx="6" fill="#E4EAF0"></rect>
+          <!-- open book -->
+          <g transform="translate(126,250)">
+            <path d="M0 92 L0 16 q66 -22 130 0 q64 -22 130 0 L260 92 q-64 -20 -130 0 q-64 -20 -130 0 Z"
+                  fill="#fff" stroke="#D6DEE6" stroke-width="2"></path>
+            <line x1="130" y1="16" x2="130" y2="92" stroke="#D6DEE6" stroke-width="2"></line>
+            <rect x="22"  y="34" width="84" height="6" rx="3" fill="#E4ECFF"></rect>
+            <rect x="22"  y="48" width="72" height="6" rx="3" fill="#E4ECFF"></rect>
+            <rect x="22"  y="62" width="88" height="6" rx="3" fill="#E4ECFF"></rect>
+            <rect x="154" y="34" width="80" height="6" rx="3" fill="#E4ECFF"></rect>
+            <rect x="154" y="48" width="90" height="6" rx="3" fill="#E4ECFF"></rect>
+            <rect x="154" y="62" width="66" height="6" rx="3" fill="#E4ECFF"></rect>
+          </g>
+          <!-- pages sliding in -->
+          <g opacity=".9">
+            <rect x="392" y="176" width="76" height="58" rx="6" fill="#fff" stroke="#2F6BFF" transform="rotate(9 430 205)"></rect>
+            <rect x="404" y="120" width="76" height="58" rx="6" fill="#fff" stroke="#2F6BFF" opacity=".6" transform="rotate(-6 442 149)"></rect>
+          </g>
+          <path d="M386 214 L318 246" stroke="#2F6BFF" stroke-width="3" stroke-linecap="round"
+                marker-end="url(#ah7)"></path>
+          <defs><marker id="ah7" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+            <path d="M0 0 L9 4.5 L0 9 z" fill="#2F6BFF"></path></marker></defs>
+          <!-- same figure, same scale as slide 06 — the pair must read as one drawing in two states -->
+          <circle cx="252" cy="150" r="30" fill="#13202B" opacity=".55"></circle>
+          <path d="M196 214 q56 -50 112 0 Z" fill="#13202B" opacity=".55"></path>
+          <g transform="translate(190,404)">
+            <rect width="140" height="34" rx="17" fill="#DBF3EF"></rect>
+            <text x="70" y="23" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="13"
+                  font-weight="600" letter-spacing="2.2" fill="#0E9C8B">OPEN BOOK</text>
+          </g>
+        </svg>
+        <img class="vimg" data-img="open" alt="">
+      </div>
+      <div>
+        <h2 class="hd" style="margin-bottom:20px">Same student.<br>Same exam.<br><span class="good">Open book.</span></h2>
+        <div class="rows">
+          <div class="f" style="display:flex;gap:16px;align-items:baseline">
+            <span class="stat" style="font-size:40px;color:var(--cobalt);width:34px">R</span>
+            <div><b style="font-size:20px">Retrieval</b>
+              <div style="font-size:16.5px;color:var(--ink-soft)">go find the pages relevant to the question</div></div>
+          </div>
+          <div class="f" style="display:flex;gap:16px;align-items:baseline">
+            <span class="stat" style="font-size:40px;color:var(--cobalt);width:34px">A</span>
+            <div><b style="font-size:20px">Augmented</b>
+              <div style="font-size:16.5px;color:var(--ink-soft)">add those pages to the question</div></div>
+          </div>
+          <div class="f" style="display:flex;gap:16px;align-items:baseline">
+            <span class="stat" style="font-size:40px;color:var(--cobalt);width:34px">G</span>
+            <div><b style="font-size:20px">Generation</b>
+              <div style="font-size:16.5px;color:var(--ink-soft)">write the answer, grounded in those pages</div></div>
+          </div>
+        </div>
+        <div class="note cobalt f" style="margin-top:22px">RAG doesn't make the model smarter.<br>
+          <b>It makes it look things up before it speaks.</b></div>
+      </div>
+    </div>
+  </div>
+  <div class="say">
+    <p>So what do you do with a brilliant-but-closed-book student? You don't send them back to school for another degree. You just change one rule: make it an <b>open-book exam.</b> Before they answer, you slide the relevant pages onto their desk. Now they're not straining to recall — they're <em>reading the actual source</em> and answering from it.</p>
+    <p>That is the entire idea of RAG. The name spells out the three steps: <b>R — Retrieval</b>, go find the pages relevant to the question. <b>A — Augmented</b>, add those pages to the question. <b>G — Generation</b>, let the model write the answer, grounded in those pages.</p>
+    <p>Say it plainly: <b>RAG doesn't make the model smarter. It makes it look things up before it speaks.</b></p>
+    <p class="do"><b>Fun beat (optional):</b> the technique got its name in a 2020 paper by Patrick Lewis at Facebook AI. He's since admitted he regrets the clunky acronym — they'd have "put more thought into the name" if they'd known it would take over the industry. So if "RAG" sounds unglamorous, blame a rushed 2020 paper deadline. He now runs a RAG team at Cohere.</p>
+    <p class="src"><b>Ground it:</b> Lewis et al., "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks," Meta AI (then FAIR), NeurIPS 2020. Naming regret via the NVIDIA interview.</p>
+  </div>
+</section>
+
+<!-- ══ 08 · The librarian ══════════════════════════════════════════════════ -->
+<section class="slide" data-title="How it works — the librarian">
+  <p class="eyebrow">08 · how it actually works</p>
+  <div class="mid">
+    <div class="split rev">
+      <div>
+        <h2 class="hd" style="margin-bottom:22px">A librarian sits between<br>you and the student.</h2>
+        <div class="rows">
+          <div class="card accent cobalt f" style="padding:16px 20px">
+            <div style="display:flex;gap:14px;align-items:center">
+              <span class="stat" style="font-size:26px;color:var(--cobalt)">1</span>
+              <div><b style="font-size:19px">You ask</b>
+                <div style="font-size:16px;color:var(--ink-soft)">a question, in your own words</div></div>
+            </div>
+          </div>
+          <div class="card accent cobalt f" style="padding:16px 20px">
+            <div style="display:flex;gap:14px;align-items:center">
+              <span class="stat" style="font-size:26px;color:var(--cobalt)">2</span>
+              <div><b style="font-size:19px">The system retrieves</b>
+                <div style="font-size:16px;color:var(--ink-soft)">the most relevant chunks of real information</div></div>
+            </div>
+          </div>
+          <div class="card accent teal f" style="padding:16px 20px">
+            <div style="display:flex;gap:14px;align-items:center">
+              <span class="stat" style="font-size:26px;color:var(--teal)">3</span>
+              <div><b style="font-size:19px">The model writes</b>
+                <div style="font-size:16px;color:var(--ink-soft)">an answer based on what was retrieved</div></div>
+            </div>
+          </div>
+        </div>
+        <p class="f" style="font-size:22px;font-weight:600;margin:20px 0 0;letter-spacing:-.015em">
+          The magic was never the talking.<br><span style="color:var(--cobalt)">The magic is the fetching.</span></p>
+      </div>
+      <div class="visual">
+        <svg class="vfall" viewBox="0 0 520 520">
+          <rect width="520" height="520" fill="#F3F6F9"></rect>
+          <!-- shelves -->
+          <g transform="translate(40,86)">
+            <rect width="196" height="332" rx="10" fill="#fff" stroke="#D6DEE6"></rect>
+            <line x1="0" y1="112" x2="196" y2="112" stroke="#D6DEE6"></line>
+            <line x1="0" y1="222" x2="196" y2="222" stroke="#D6DEE6"></line>
+            <g fill="#E4ECFF">
+              <rect x="16" y="34" width="18" height="66" rx="3"></rect><rect x="40" y="26" width="22" height="74" rx="3"></rect>
+              <rect x="68" y="38" width="16" height="62" rx="3"></rect><rect x="90" y="30" width="20" height="70" rx="3"></rect>
+              <rect x="116" y="42" width="18" height="58" rx="3"></rect><rect x="140" y="28" width="24" height="72" rx="3"></rect>
+              <rect x="16" y="146" width="20" height="64" rx="3"></rect><rect x="42" y="138" width="16" height="72" rx="3"></rect>
+              <rect x="64" y="152" width="22" height="58" rx="3"></rect><rect x="92" y="140" width="18" height="70" rx="3"></rect>
+              <rect x="116" y="148" width="24" height="62" rx="3"></rect><rect x="146" y="136" width="18" height="74" rx="3"></rect>
+              <rect x="16" y="256" width="18" height="62" rx="3"></rect><rect x="40" y="248" width="22" height="70" rx="3"></rect>
+              <rect x="68" y="260" width="20" height="58" rx="3"></rect><rect x="94" y="250" width="16" height="68" rx="3"></rect>
+              <rect x="116" y="258" width="22" height="60" rx="3"></rect><rect x="144" y="246" width="20" height="72" rx="3"></rect>
+            </g>
+          </g>
+          <!-- the three pages the librarian actually pulled -->
+          <g>
+            <rect x="318" y="132" width="150" height="72" rx="8" fill="#fff" stroke="#2F6BFF" stroke-width="2"></rect>
+            <rect x="336" y="152" width="94" height="6" rx="3" fill="#E4ECFF"></rect>
+            <rect x="336" y="166" width="72" height="6" rx="3" fill="#E4ECFF"></rect>
+            <rect x="336" y="180" width="104" height="6" rx="3" fill="#E4ECFF"></rect>
+
+            <rect x="318" y="222" width="150" height="72" rx="8" fill="#fff" stroke="#2F6BFF" stroke-width="2"></rect>
+            <rect x="336" y="242" width="82" height="6" rx="3" fill="#E4ECFF"></rect>
+            <rect x="336" y="256" width="100" height="6" rx="3" fill="#E4ECFF"></rect>
+            <rect x="336" y="270" width="68" height="6" rx="3" fill="#E4ECFF"></rect>
+
+            <rect x="318" y="312" width="150" height="72" rx="8" fill="#fff" stroke="#2F6BFF" stroke-width="2"></rect>
+            <rect x="336" y="332" width="100" height="6" rx="3" fill="#E4ECFF"></rect>
+            <rect x="336" y="346" width="72" height="6" rx="3" fill="#E4ECFF"></rect>
+            <rect x="336" y="360" width="90" height="6" rx="3" fill="#E4ECFF"></rect>
+          </g>
+          <defs><marker id="ah8" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+            <path d="M0 0 L9 4.5 L0 9 z" fill="#2F6BFF"></path></marker></defs>
+          <!-- three separate paths on purpose: marker-end decorates only the LAST subpath
+               of a multi-subpath `d`, so a single path would draw one arrowhead, not three. -->
+          <path d="M244 168 L308 168" stroke="#2F6BFF" stroke-width="3" stroke-linecap="round" marker-end="url(#ah8)"></path>
+          <path d="M244 258 L308 258" stroke="#2F6BFF" stroke-width="3" stroke-linecap="round" marker-end="url(#ah8)"></path>
+          <path d="M244 348 L308 348" stroke="#2F6BFF" stroke-width="3" stroke-linecap="round" marker-end="url(#ah8)"></path>
+          <text x="260" y="452" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="12.5"
+                font-weight="600" letter-spacing="2.4" fill="#8A98A6">FETCH FIRST · THEN ANSWER</text>
+        </svg>
+        <img class="vimg" data-img="librarian" alt="">
+      </div>
+    </div>
+  </div>
+  <div class="say">
+    <p>Let me make it even more concrete. Imagine a helpful <b>librarian</b> sitting between you and that know-it-all student.</p>
+    <p>You ask your question. Instead of letting the student blurt out a guess, the librarian sprints to the shelves, pulls the <em>three most relevant pages</em>, and lays them on the desk. <em>Then</em> the student answers — using those exact pages.</p>
+    <p>Three steps, that's it. One: you ask a question. Two: the system retrieves the most relevant chunks of real information. Three: the model writes an answer based on what was retrieved.</p>
+    <p>The magic was never the talking. Computers have been able to generate fluent text for a while now. <b>The magic is the fetching</b> — pulling the right page at the right moment.</p>
+    <p class="do"><b>Do:</b> "If I asked <em>you</em> to be the librarian and answer 'what's our refund policy,' where would you look? Right — the policy document, not your memory. That instinct you just had? That <em>is</em> RAG."</p>
+  </div>
+</section>
+
+<!-- ══ 09 · Before / after ═════════════════════════════════════════════════ -->
+<section class="slide" data-title="The lawyer, with RAG">
+  <p class="eyebrow">09 · rewind the first story</p>
+  <h2 class="hd" style="margin-bottom:22px">Same question. Same model.<br>One of them was handed the pages.</h2>
+  <div class="mid" style="align-items:flex-start">
+    <div class="grid2" style="width:100%">
+      <div class="card accent coral">
+        <div class="top"><span class="pill coral">closed book</span></div>
+        <h3 style="margin-bottom:14px">Six cases, invented</h3>
+        <svg viewBox="0 0 500 108" style="width:100%;display:block">
+          <g>
+            <g transform="translate(0,10)"><rect width="70" height="88" rx="6" fill="#fff" stroke="#D6DEE6"></rect>
+              <path d="M16 24 L54 64 M54 24 L16 64" stroke="#E5484D" stroke-width="5" stroke-linecap="round"></path></g>
+            <g transform="translate(86,10)"><rect width="70" height="88" rx="6" fill="#fff" stroke="#D6DEE6"></rect>
+              <path d="M16 24 L54 64 M54 24 L16 64" stroke="#E5484D" stroke-width="5" stroke-linecap="round"></path></g>
+            <g transform="translate(172,10)"><rect width="70" height="88" rx="6" fill="#fff" stroke="#D6DEE6"></rect>
+              <path d="M16 24 L54 64 M54 24 L16 64" stroke="#E5484D" stroke-width="5" stroke-linecap="round"></path></g>
+            <g transform="translate(258,10)"><rect width="70" height="88" rx="6" fill="#fff" stroke="#D6DEE6"></rect>
+              <path d="M16 24 L54 64 M54 24 L16 64" stroke="#E5484D" stroke-width="5" stroke-linecap="round"></path></g>
+            <g transform="translate(344,10)"><rect width="70" height="88" rx="6" fill="#fff" stroke="#D6DEE6"></rect>
+              <path d="M16 24 L54 64 M54 24 L16 64" stroke="#E5484D" stroke-width="5" stroke-linecap="round"></path></g>
+            <g transform="translate(430,10)"><rect width="70" height="88" rx="6" fill="#fff" stroke="#D6DEE6"></rect>
+              <path d="M16 24 L54 64 M54 24 L16 64" stroke="#E5484D" stroke-width="5" stroke-linecap="round"></path></g>
+          </g>
+        </svg>
+        <p style="margin-top:14px">Answering from memory. Nothing to check the citations against — so nothing stopped them being invented.</p>
+      </div>
+      <div class="card accent teal f">
+        <div class="top"><span class="pill teal">open book</span></div>
+        <h3 style="margin-bottom:14px">Real cases, with receipts</h3>
+        <div class="rows" style="gap:9px">
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 13px;border:var(--line-w) solid var(--line-2);border-radius:11px;background:var(--surface-2)">
+            <span class="dot" style="background:var(--teal)"></span>
+            <span style="flex:1;font-size:15.5px;color:var(--ink-soft)">retrieved from the case-law database</span>
+            <span class="cite">source 1</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 13px;border:var(--line-w) solid var(--line-2);border-radius:11px;background:var(--surface-2)">
+            <span class="dot" style="background:var(--teal)"></span>
+            <span style="flex:1;font-size:15.5px;color:var(--ink-soft)">retrieved from the case-law database</span>
+            <span class="cite">source 2</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 13px;border:var(--line-w) solid var(--line-2);border-radius:11px;background:var(--surface-2)">
+            <span class="dot" style="background:var(--teal)"></span>
+            <span style="flex:1;font-size:15.5px;color:var(--ink-soft)">retrieved from the case-law database</span>
+            <span class="cite">source 3</span>
+          </div>
+        </div>
+        <p style="margin-top:14px">It isn't answering from memory. It's answering from documents that exist — and every claim links back.</p>
+      </div>
+    </div>
+  </div>
+  <div class="note teal f" style="margin-top:20px">That's the difference between <b>"trust me"</b>
+    and <b>"here — verify it yourself."</b> For a lawyer, a doctor, a bank, that difference is everything.</div>
+  <div class="say">
+    <p>Let's rewind to our lawyer and give the story a happy ending. Closed-book ChatGPT invented six cases out of thin air. Now hand that same question to a RAG system wired into a <em>real</em> legal database. It searches actual case law, pulls the genuine cases that match, and builds the argument <em>from those.</em> No invention — because it isn't answering from memory, it's answering from documents that exist.</p>
+    <p>And here's the part that changes everything for trust: it can <b>show its receipts.</b> Every claim links back to the exact source it came from, so you can click and check it yourself. That's the whole difference between <em>"trust me"</em> and <em>"here — verify it yourself."</em> For a lawyer, a doctor, a bank, that difference is everything.</p>
+  </div>
+</section>
+
+<!-- ══ 10 · You already use this ═══════════════════════════════════════════ -->
+<section class="slide" data-title="You already use this">
+  <p class="eyebrow">10 · the plot twist</p>
+  <h2 class="hd" style="margin-bottom:8px">You already use this every day.</h2>
+  <p class="sub" style="max-width:64ch;margin-bottom:26px">RAG isn't an exotic lab technique. It's the
+    quiet engine behind tools you already trust.</p>
+  <div class="mid" style="align-items:flex-start">
+    <div style="width:100%">
+      <div class="grid4">
+        <div class="card f" style="padding:18px 20px">
+          <span class="pill cobalt">search</span>
+          <h3 style="font-size:19px;margin:11px 0 6px">Perplexity</h3>
+          <p style="font-size:15.5px">Runs a live web search on <b>every</b> question, then answers with
+            numbered citations.</p>
+        </div>
+        <div class="card f" style="padding:18px 20px">
+          <span class="pill cobalt">search</span>
+          <h3 style="font-size:19px;margin:11px 0 6px">ChatGPT search</h3>
+          <p style="font-size:15.5px">Same retrieve-then-answer pattern whenever it browses the web.</p>
+        </div>
+        <div class="card f" style="padding:18px 20px">
+          <span class="pill teal">your data</span>
+          <h3 style="font-size:19px;margin:11px 0 6px">Support bots</h3>
+          <p style="font-size:15.5px">The one that somehow knows <b>your</b> order status is reading your
+            real account.</p>
+        </div>
+        <div class="card f" style="padding:18px 20px">
+          <span class="pill teal">your data</span>
+          <h3 style="font-size:19px;margin:11px 0 6px">Work assistants</h3>
+          <p style="font-size:15.5px">Anything that answers questions about your company's own wiki.</p>
+        </div>
+      </div>
+      <div class="f" style="margin-top:26px;text-align:center">
+        <p style="font-size:25px;font-weight:600;margin:0;letter-spacing:-.015em">Once you see the pattern,
+          you'll spot it everywhere:</p>
+        <p style="font-size:25px;font-weight:600;margin:6px 0 0;color:var(--cobalt);letter-spacing:-.015em">
+          the trustworthy AI tools are the ones that look things up.</p>
+      </div>
+    </div>
+  </div>
+  <div class="say">
+    <p>Now the twist that surprises most people. RAG isn't some exotic lab technique you'll never touch. It's the quiet engine behind AI tools <b>you already use and trust.</b></p>
+    <p>Ever used Perplexity? Every single question you type triggers a <em>live web search</em>, and it hands you an answer with little numbered citations. That's RAG — textbook. It runs to the library, skims the best sources, and gives you back a tidy report with footnotes. ChatGPT does the same thing whenever it browses the web. That customer-support bot that somehow knows <em>your</em> order status? RAG, reading your real account. The work assistant that answers questions about your company's own wiki? RAG.</p>
+    <p>Once you see the pattern, you'll spot it everywhere: <b>the trustworthy AI tools are almost always the ones that look things up.</b></p>
+    <p class="src"><b>Ground it:</b> Perplexity performs live retrieval with inline citations on essentially every query; ChatGPT's web search follows the same retrieve-then-answer pattern. Sources: Perplexity explainers (LLM Pulse, Medium/GenAI).</p>
+  </div>
+</section>
+
+<!-- ══ 11 · Close to home ══════════════════════════════════════════════════ -->
+<section class="slide" data-title="Swiggy, Flipkart — close to home">
+  <div style="display:flex;justify-content:space-between;align-items:baseline">
+    <p class="eyebrow">11 · why it matters, close to home</p>
+    <span class="pill grey">company-reported figures</span>
+  </div>
+  <h2 class="hd" style="margin-bottom:20px">Apps in your pocket already<br>run on “look it up first.”</h2>
+  <div class="mid">
+    <div style="width:100%">
+      <div class="card accent cobalt f">
+        <div class="top">
+          <h3 style="margin:0;font-size:24px">Swiggy</h3>
+          <span class="pill grey">millions of orders a day</span>
+        </div>
+        <div class="chips" style="margin:6px 0 14px">
+          <span class="chip">plain LLM</span><span class="arrow">→</span>
+          <span class="chip on">RAG</span><span class="arrow">→</span>
+          <span class="chip">agentic</span>
+          <span style="flex:1"></span>
+          <span style="font-size:16px;color:var(--ink-soft)">
+            <b style="color:var(--ink)">thousands</b> of concurrent support chats ·
+            <b style="color:var(--ink)">sub-second</b></span>
+        </div>
+        <p>Their support agent started as a plain language model. The upgrade that actually made it
+          reliable was letting it pull <b>your</b> real order and <b>their</b> real policies before answering.</p>
+      </div>
+
+      <div class="note f" style="margin-top:18px">
+        <b>The whole talk, compressed into one production bug.</b><br>
+        Swiggy's team found the AI giving outdated answers — because it was replying from short-term memory
+        instead of fetching current data. Their fix, in their own words: <b>force it to go look things up
+        before it answers.</b>
+      </div>
+
+      <div class="f" style="margin-top:18px;display:flex;gap:16px;align-items:center">
+        <div class="card" style="flex:1;padding:14px 18px">
+          <span style="font-size:16.5px;color:var(--ink-soft)">
+            <b style="color:var(--ink);font-size:18px">Flipkart “Flippi”</b> — a chat layer over the whole
+            catalogue, with a retrieval pipeline underneath.</span>
+        </div>
+        <span style="font-size:16.5px;color:var(--ink-faint);white-space:nowrap">Zomato · your bank's app · same pattern</span>
+      </div>
+    </div>
+  </div>
+  <div class="say">
+    <p>So why should a room full of people from every background care? Because grounding AI in real data is exactly what turns it from a toy into something companies <em>you use every single day</em> now run at massive scale.</p>
+    <p>Take <b>Swiggy</b> — millions of food orders a day across India. When you message support about a late order or a refund, there's an AI agent on the other side now. Swiggy's own engineering team published <em>how</em> they built it. They started with a plain language model — and the upgrade that actually made it reliable was <b>adding RAG</b>: letting the agent pull <em>your</em> real order details and <em>their</em> real policies before it answers. They then grew it into an agent handling thousands of support chats at the same time, at sub-second speed.</p>
+    <p>Now my favourite detail, because it's this entire talk compressed into one bug. The Swiggy team noticed the AI sometimes gave <b>outdated answers</b> — because it was replying from its short-term memory instead of fetching the latest data. Their fix, in their own words? <b>Force it to go look things up before it answers.</b> That is <em>literally</em> the closed-book-to-open-book move — shipped, in production, at a company in this room's pocket right now.</p>
+    <p>And it's not just Swiggy. <b>Flipkart's</b> shopping assistant "Flippi" is a chat layer sitting on top of their whole catalogue, with a retrieval pipeline underneath. Zomato, Meesho, your bank's app — same pattern, everywhere.</p>
+    <p class="do"><b>Careful:</b> say "Swiggy's team reported…" — these are company/partner engineering-blog numbers, not audited stats. The point is recognition, not decimal points.</p>
+    <p class="src"><b>Ground it:</b> Swiggy + Databricks engineering blog (Oct 2025) — support agent evolved plain LLM → RAG → agentic; thousands of concurrent sessions, sub-second latency targets; explicitly fixed an "answered from memory → stale info" bug by forcing data lookups. Flipkart "Flippi" (launched Oct 2023) — Flipkart Tech blog and the arXiv paper.</p>
+  </div>
+</section>
+
+<!-- ══ 12 · The one idea ═══════════════════════════════════════════════════ -->
+<section class="slide" data-title="The one idea to keep">
+  <p class="eyebrow">12 · if you forget everything else</p>
+  <div class="mid center" style="gap:30px">
+    <div style="width:900px">
+      <div style="display:flex;align-items:center;gap:26px;padding:22px 28px;border-left:4px solid var(--coral);
+                  background:var(--coral-soft);border-radius:0 14px 14px 0">
+        <span class="pill coral" style="flex:0 0 auto">closed book</span>
+        <span style="font-size:34px;font-weight:600;color:#9b2c30;letter-spacing:-.02em">answers that
+          <b style="font-weight:700">sound</b> right</span>
+      </div>
+      <div class="f" style="display:flex;align-items:center;gap:26px;padding:22px 28px;margin-top:16px;
+                  border-left:4px solid var(--teal);background:var(--teal-soft);border-radius:0 14px 14px 0">
+        <span class="pill teal" style="flex:0 0 auto">open book</span>
+        <span style="font-size:34px;font-weight:600;color:#0a6b5f;letter-spacing:-.02em">answers that
+          <b style="font-weight:700">are</b> right — and here's the proof</span>
+      </div>
+    </div>
+    <p class="f" style="font-size:38px;font-weight:700;letter-spacing:-.025em;margin:0">
+      RAG doesn't make AI smarter.<br><span style="color:var(--cobalt)">It makes it honest.</span></p>
+  </div>
+  <div class="say">
+    <p>If you forget every other slide, keep this one.</p>
+    <p>A raw language model gives you answers that <b>sound</b> right. RAG gives you answers that <b>are</b> right — grounded in real sources, current instead of frozen, specific to your world, and checkable. It's the bridge from a clever party trick to something a hospital, a bank, or a court can actually lean on.</p>
+    <p>Put simply: <b>RAG doesn't make AI smarter. It makes it honest.</b></p>
+  </div>
+</section>
+
+<!-- ══ 13 · Recap ══════════════════════════════════════════════════════════ -->
+<section class="slide" data-title="Recap in 20 seconds">
+  <p class="eyebrow">13 · the whole talk in three lines</p>
+  <h2 class="hd" style="margin-bottom:26px">Recap, in twenty seconds.</h2>
+  <div class="mid" style="align-items:flex-start">
+    <div class="rows" style="width:100%;gap:18px">
+      <div class="f" style="display:flex;gap:24px;align-items:center;padding:24px 28px;
+                  border-left:4px solid var(--coral);background:var(--coral-soft);border-radius:0 14px 14px 0">
+        <span class="pill coral" style="flex:0 0 92px;text-align:center">problem</span>
+        <span style="font-size:27px;font-weight:600;color:#9b2c30;letter-spacing:-.018em">
+          Confidently wrong, frozen in time, blind to your data.</span>
+      </div>
+      <div class="f" style="display:flex;gap:24px;align-items:center;padding:24px 28px;
+                  border-left:4px solid var(--cobalt);background:var(--cobalt-soft);border-radius:0 14px 14px 0">
+        <span class="pill cobalt" style="flex:0 0 92px;text-align:center">fix</span>
+        <span style="font-size:27px;font-weight:600;color:#1c356e;letter-spacing:-.018em">
+          RAG — look it up before answering. <span style="opacity:.72">Retrieve, Augment, Generate.</span></span>
+      </div>
+      <div class="f" style="display:flex;gap:24px;align-items:center;padding:24px 28px;
+                  border-left:4px solid var(--teal);background:var(--teal-soft);border-radius:0 14px 14px 0">
+        <span class="pill teal" style="flex:0 0 92px;text-align:center">payoff</span>
+        <span style="font-size:27px;font-weight:600;color:#0a6b5f;letter-spacing:-.018em">
+          Grounded, current, source-cited answers you can check.</span>
+      </div>
+    </div>
+  </div>
+  <div class="say">
+    <p>That's the whole talk in three lines. The problem is a knowledge gap. The fix is to hand the model the right pages before it answers. The payoff is an AI you can actually check.</p>
+  </div>
+</section>
+
+<!-- ══ 14 · The seam into the lab ══════════════════════════════════════════ -->
+<section class="slide" data-title="Where it goes next — the seam">
+  <p class="eyebrow">14 · where it goes next</p>
+  <h2 class="hd" style="margin-bottom:10px">Everything after this is making<br>the librarian
+    <span class="beam">faster and smarter.</span></h2>
+  <p class="sub" style="max-width:70ch;margin-bottom:22px">None of it changes the idea you now understand.
+    It's all engineering to find the right page more reliably — and you're about to watch each piece run.</p>
+  <div class="mid">
+    <div style="width:100%">
+      <div class="f">
+        <div class="labtabs">
+          <div class="labtab active"><span class="n">00</span>Pipeline</div>
+          <div class="labtab"><span class="n">01</span>Embeddings</div>
+          <div class="labtab"><span class="n">02</span>The document</div>
+          <div class="labtab"><span class="n">03</span>Retrieval</div>
+          <div class="labtab"><span class="n">04</span>Reranking</div>
+          <div class="labtab"><span class="n">05</span>Generation</div>
+          <div class="labtab"><span class="n">06</span>Hybrid</div>
+          <div class="labtab"><span class="n">07</span>Contextual</div>
+          <div class="labtab"><span class="n">08</span>Evaluation</div>
+        </div>
+      </div>
+      <div class="f" style="margin-top:24px">
+        <div class="grid3">
+          <div class="card" style="padding:16px 20px">
+            <p style="font-size:16px"><b style="color:var(--ink)">Finding the page</b><br>
+              embeddings · chunking · retrieval</p>
+          </div>
+          <div class="card" style="padding:16px 20px">
+            <p style="font-size:16px"><b style="color:var(--ink)">Finding the <em>right</em> page</b><br>
+              reranking · hybrid search · context</p>
+          </div>
+          <div class="card" style="padding:16px 20px">
+            <p style="font-size:16px"><b style="color:var(--ink)">Knowing that it worked</b><br>
+              evaluation — the part that separates a demo from a system</p>
+          </div>
+        </div>
+      </div>
+      <div class="note cobalt f" style="margin-top:20px">These are the nine tabs of the lab we're opening
+        next. <b>Same librarian — you'll just watch them work.</b></div>
+    </div>
+  </div>
+  <div class="say">
+    <p>Everything technical you might hear later — embeddings, vector databases, chunking, re-ranking — none of it changes the idea you now understand. It's all just engineering to make that librarian <em>faster</em> and <em>more accurate</em> at finding the right page. The heart of it stays exactly what you've got: <b>fetch the right information, then answer.</b></p>
+    <p><b>This slide is the seam.</b> Don't present these as details to skip — present them as coming attractions. That tab bar on screen is the literal interface you are about to open, so the transition stops being a topic change and becomes a door. Point at 03 Retrieval and 06 Hybrid as the two moments they'll remember.</p>
+  </div>
+</section>
+
+<!-- ══ 15 · Close ══════════════════════════════════════════════════════════ -->
+<section class="slide" data-title="Close">
+  <p class="eyebrow">15 · close</p>
+  <div class="mid center" style="gap:32px">
+    <h1 class="big" style="font-size:53px">The magic isn't that AI can talk.<br>
+      <span class="beam">It's that it can look things up —<br>and show its work.</span></h1>
+    <p class="f" style="font-size:26px;color:var(--ink-soft);margin:0;max-width:42ch">
+      So the next time an AI answers you instantly and confidently, you'll know the real question to ask:
+      <b style="color:var(--ink)">did it guess — or did it look it up?</b></p>
+    <!-- target=_blank so the deck survives the handoff — you can come back to this
+         slide at the end of the 90 minutes. Works on file:// too. -->
+    <a class="f card" href="rag-lab.html" target="_blank" rel="noopener"
+       style="display:flex;align-items:center;gap:20px;padding:18px 26px;text-decoration:none">
+      <span class="pill cobalt">next</span>
+      <!-- deliberately not the word "live": in the lab that word was removed from the generate
+           button because it implied an API call that never happens. Don't re-open the claim here. -->
+      <span style="font-size:20px;color:var(--ink-soft)">Let's watch it happen —
+        <b style="color:var(--ink)">rag-lab.html</b>, nine tabs, every score computed in the page.</span>
+    </a>
+  </div>
+  <div class="say">
+    <p>So the next time an AI answers you instantly and confidently, you'll know the real question to ask: <em>did it just guess from memory — or did it look it up?</em> That single question is the difference between AI as a party trick and AI you can build your work on.</p>
+    <p class="do"><b>Do NOT run the two-answer contrast here.</b> The deck script offers it as an optional live finish, but that demo <em>is</em> lab tab 05 — the raw model guessing "~30 days" versus the grounded "45 days" with a citation. Spending it now costs you the payoff of Act 1. End on the question, then open the lab.</p>
+    <p><b>Transition line:</b> "Let's watch it happen. Nine tabs, left to right — that's the pipeline."</p>
+  </div>
+</section>
+
+</div></div>
+
+<div id="hud">00 / 15</div>
+<div id="hint">→ advance · <b>?</b> keys</div>
+<div id="blank"></div>
+
+<div id="ov"><h4>Jump to a slide</h4><div id="ovgrid"></div></div>
+
+<div id="notes">
+  <div class="nhead"><span id="ntitle">Speaker notes</span><span>S to hide</span></div>
+  <div class="nbody" id="nbody"></div>
+</div>
+
+<div id="help"><div class="box">
+  <h4>Keys</h4>
+  <table>
+    <tr><td><kbd>→</kbd> <kbd>Space</kbd> <kbd>PgDn</kbd></td><td>next reveal, then next slide</td></tr>
+    <tr><td><kbd>←</kbd> <kbd>PgUp</kbd></td><td>back</td></tr>
+    <tr><td><kbd>Home</kbd> <kbd>End</kbd></td><td>first / last slide</td></tr>
+    <tr><td><kbd>F</kbd></td><td>fullscreen</td></tr>
+    <tr><td><kbd>B</kbd></td><td>blank the screen</td></tr>
+    <tr><td><kbd>S</kbd></td><td>speaker notes</td></tr>
+    <tr><td><kbd>O</kbd></td><td>slide overview</td></tr>
+    <tr><td><kbd>P</kbd></td><td>print the script</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>close this / overview / blank</td></tr>
+  </table>
+</div></div>
+
+<div id="printout"></div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   The image manifest — the ONE place to edit if your generator emits .jpg
+   instead of .png, or if you name a file differently. A mismatch here fails
+   silently: the slot just keeps showing its SVG fallback and nothing tells
+   you why. Keys must match the data-img attributes in the markup.
+   Set a value to null to force the hand-drawn SVG for that slot.
+   ════════════════════════════════════════════════════════════════════════ */
+const IMAGES = {
+  lawyer:    'img/01-lawyer.png',
+  airline:   'img/02-airline.png',
+  frozen:    'img/03-frozen.png',
+  closed:    'img/04-closed-book.png',
+  open:      'img/05-open-book.png',
+  librarian: 'img/06-librarian.png'
+};
+
+/* Every raster slot sits on top of a hand-authored SVG that is presentable on
+   its own. If the file is missing the <img> deletes itself and the SVG shows.
+   That is why this deck is finished whether or not any image ever exists. */
+document.querySelectorAll('img.vimg').forEach(img=>{
+  const src = IMAGES[img.dataset.img];
+  if(!src){ img.remove(); return; }
+  img.onerror = ()=>img.remove();
+  img.src = src;
+});
+
+const canvas = document.getElementById('canvas');
+const slides = Array.from(document.querySelectorAll('.slide'));
+const frags  = slides.map(s=>Array.from(s.querySelectorAll('.f')));
+const hud    = document.getElementById('hud');
+const prog   = document.getElementById('prog');
+const hint   = document.getElementById('hint');
+const blank  = document.getElementById('blank');
+const ov     = document.getElementById('ov');
+const help   = document.getElementById('help');
+const notes  = document.getElementById('notes');
+const nbody  = document.getElementById('nbody');
+const ntitle = document.getElementById('ntitle');
+
+let si = 0, fi = 0, notesOn = false;
+
+/* Scale the fixed canvas to whatever the projector actually gives us.
+   min() on both axes means we letterbox rather than crop — a 4:3 beamer
+   shows the whole 16:9 frame with bars, never a clipped edge. */
+function fit(){
+  const s = Math.min(innerWidth/1280, innerHeight/720);
+  canvas.style.transform = 'scale('+s+')';
+  /* Below ~0.85 a 1.5px hairline lands under 1.3 device px and starts to shimmer
+     on a projector. Bump it rather than let the card edges disappear. */
+  document.documentElement.style.setProperty('--line-w', s < 0.85 ? '2px' : '1.5px');
+}
+addEventListener('resize', fit); fit();
+
+function render(){
+  slides.forEach((s,i)=>s.classList.toggle('on', i===si));
+  frags[si].forEach((f,i)=>f.classList.toggle('show', i<fi));
+  hud.textContent = String(si).padStart(2,'0')+' / '+String(slides.length-1).padStart(2,'0');
+  prog.style.width = (si/(slides.length-1)*100)+'%';
+  ntitle.textContent = String(si).padStart(2,'0')+' · '+slides[si].dataset.title;
+  const say = slides[si].querySelector('.say');
+  nbody.innerHTML = say ? say.innerHTML : '';
+  nbody.scrollTop = 0;
+  Array.from(ov.querySelectorAll('.ovcard')).forEach((c,i)=>c.classList.toggle('cur', i===si));
+}
+function go(n, showAll){
+  si = Math.max(0, Math.min(slides.length-1, n));
+  fi = showAll ? frags[si].length : 0;
+  render();
+}
+function next(){
+  if(fi < frags[si].length){ fi++; render(); }
+  else if(si < slides.length-1){ go(si+1, false); }
+}
+function prev(){
+  if(fi > 0){ fi--; render(); }
+  else if(si > 0){ go(si-1, true); }   /* stepping back lands on a fully-revealed slide */
+}
+
+/* Overview: titles, not thumbnails. Jumping around live, you need to read
+   where you're going more than you need a tiny picture of it. */
+const ovgrid = document.getElementById('ovgrid');
+slides.forEach((s,i)=>{
+  const b = document.createElement('button');
+  b.className = 'ovcard';
+  b.innerHTML = '<div class="n">'+String(i).padStart(2,'0')+'</div><div class="t">'+s.dataset.title+'</div>';
+  b.onclick = ()=>{ ov.style.display='none'; go(i, false); };
+  ovgrid.appendChild(b);
+});
+
+function toggle(el, disp){
+  const on = el.style.display === (disp||'block');
+  el.style.display = on ? 'none' : (disp||'block');
+  return !on;
+}
+
+addEventListener('keydown', e=>{
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key;
+
+  if(k === 'Escape'){
+    ov.style.display='none'; help.style.display='none'; blank.style.display='none';
+    e.preventDefault(); return;
+  }
+  /* Presenter clickers send PageDown/PageUp, not arrows. Leaving these out is
+     the classic "my clicker doesn't work" moment thirty seconds into a talk. */
+  if(k==='ArrowRight' || k==='PageDown' || k===' ' || k==='Spacebar'){ next(); e.preventDefault(); return; }
+  if(k==='ArrowLeft'  || k==='PageUp'){ prev(); e.preventDefault(); return; }
+  if(k==='Home'){ go(0,false); e.preventDefault(); return; }
+  if(k==='End'){ go(slides.length-1,true); e.preventDefault(); return; }
+
+  const l = k.toLowerCase();
+  if(l==='f'){ document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); e.preventDefault(); }
+  else if(l==='b'){ toggle(blank); e.preventDefault(); }
+  else if(l==='o'){ toggle(ov); e.preventDefault(); }
+  else if(l==='s'){ notesOn = toggle(notes,'flex'); e.preventDefault(); }
+  else if(l==='p'){ window.print(); e.preventDefault(); }
+  else if(k==='?' || l==='/'){ toggle(help,'grid'); e.preventDefault(); }
+});
+
+/* Click / tap to advance, but not on the overlays. */
+document.getElementById('stage').addEventListener('click', e=>{
+  if(ov.style.display==='block' || help.style.display==='grid') return;
+  if(e.target.closest('a')) return;          /* the lab link on slide 15 */
+  next();
+});
+
+/* Build the printable script once, at load. Printing the visual slides would
+   waste paper and read worse than the thing the presenter actually needs:
+   a per-slide script they can hold. Doubles as the PDF fallback. */
+const printout = document.getElementById('printout');
+slides.forEach((s,i)=>{
+  const say = s.querySelector('.say');
+  const h = s.querySelector('h1,h2');
+  /* <br> contributes no whitespace to textContent, so the two halves of a two-line
+     headline would run together ("brilliant.That's"). Swap them for spaces first. */
+  let onScreen = '';
+  if(h){
+    const c = h.cloneNode(true);
+    c.querySelectorAll('br').forEach(br=>br.replaceWith(' '));
+    onScreen = c.textContent.replace(/\s+/g,' ').trim();
+  }
+  const d = document.createElement('div');
+  d.className = 'pslide';
+  d.innerHTML = '<div class="pn">Slide '+String(i).padStart(2,'0')+'</div>'
+    + '<h3>'+s.dataset.title+'</h3>'
+    + (onScreen ? '<p class="pscreen">On screen: '+onScreen+'</p>' : '')
+    + '<div class="pbody">'+(say?say.innerHTML:'')+'</div>';
+  printout.appendChild(d);
+});
+
+/* The nav hint has done its job after the first advance. */
+addEventListener('keydown', function fade(){ hint.style.opacity='0'; removeEventListener('keydown', fade); });
+
+render();
+</script>

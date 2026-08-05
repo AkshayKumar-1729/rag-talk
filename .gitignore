@@ -1,0 +1,14 @@
+# Source footage, kept locally. Nothing in the deck, the film or the lab references it, and at
+# 73 MB it would turn a 6 MB site into an 80 MB clone for every reader.
+Indexed_Confluence_Docs_Agent_compressed.mp4
+*.mp4
+
+# Planning transcript from the session that fixed the film's stages 2, 6 and 9. The fixes shipped;
+# the notes describing them as broken did not age into anything a reader wants.
+enhancement_plan.txt
+
+# OS clutter
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store

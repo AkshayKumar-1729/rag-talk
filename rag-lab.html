@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The RAG Lab — see retrieval in motion</title>
+<!-- Loaded non-blocking on purpose: this file is presented offline. If the network is
+     absent or sitting behind a captive portal, the page must render instantly rather
+     than stall waiting on a stylesheet. Without it the type falls back to system-ui /
+     ui-monospace — different-looking, identical layout. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+:root{
+  --bg:#E9EDF1; --surface:#FFFFFF; --surface-2:#F3F6F9; --surface-3:#ECF0F5;
+  --ink:#13202B; --ink-soft:#516070; --ink-faint:#8A98A6; --line:#D6DEE6; --line-2:#E4EAF0;
+  --cobalt:#2F6BFF; --cobalt-ink:#1A4ED8; --cobalt-soft:#E4ECFF;
+  --amber:#D98518; --amber-ink:#9A5A00; --amber-soft:#FBEEDA;
+  --teal:#0E9C8B; --teal-soft:#DBF3EF;
+  --coral:#E5484D; --coral-soft:#FBE3E4;
+  --violet:#7A5AF8; --violet-soft:#ECE7FF;
+  --shadow:0 1px 2px rgba(19,32,43,.06),0 8px 24px rgba(19,32,43,.06);
+  --shadow-sm:0 1px 2px rgba(19,32,43,.08);
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --disp:"Space Grotesk",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--disp);background:var(--bg);color:var(--ink);
+  -webkit-font-smoothing:antialiased;line-height:1.5;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 22px 80px}
+a{color:var(--cobalt-ink)}
+
+/* ---------- header ---------- */
+.masthead{margin-bottom:22px}
+.kicker{font-family:var(--mono);font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--cobalt-ink);font-weight:600;margin:0 0 10px}
+.masthead h1{font-size:clamp(30px,5vw,46px);line-height:1.02;font-weight:700;letter-spacing:-.02em;margin:0 0 12px}
+.masthead h1 .beam{color:var(--cobalt);position:relative}
+.masthead p{margin:0;max-width:60ch;color:var(--ink-soft);font-size:15.5px}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:26px 0 20px;border-bottom:1px solid var(--line);padding-bottom:0}
+.tab{
+  appearance:none;border:0;background:transparent;cursor:pointer;
+  font-family:var(--disp);font-size:14px;font-weight:600;color:var(--ink-soft);
+  padding:11px 11px 13px;border-bottom:2px solid transparent;margin-bottom:-1px;
+  display:flex;align-items:baseline;gap:7px;white-space:nowrap;border-radius:8px 8px 0 0;transition:color .15s,background .15s;
+}
+.tab .n{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink-faint)}
+.tab:hover{color:var(--ink);background:var(--surface-3)}
+.tab.active{color:var(--ink);border-bottom-color:var(--cobalt)}
+.tab.active .n{color:var(--cobalt)}
+
+/* ---------- panels ---------- */
+.panel{display:none;animation:rise .3s ease both}
+.panel.active{display:block}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.lead{max-width:66ch;margin:2px 0 20px;color:var(--ink-soft);font-size:15px}
+.lead b{color:var(--ink);font-weight:600}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:20px}
+.stage-title{font-size:13px;font-weight:600;letter-spacing:-.01em;margin:0 0 14px;color:var(--ink);display:flex;align-items:center;gap:9px}
+.stage-title .dot{width:8px;height:8px;border-radius:50%;background:var(--cobalt)}
+
+.note{margin-top:16px;padding:13px 15px;border-left:3px solid var(--amber);background:var(--amber-soft);border-radius:0 10px 10px 0;font-size:13.5px;color:#5b3d0e}
+.note b{color:var(--amber-ink)}
+.note.cobalt{border-left-color:var(--cobalt);background:var(--cobalt-soft);color:#1c356e}
+.note.cobalt b{color:var(--cobalt-ink)}
+
+.controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;margin-bottom:18px}
+.ctrl{display:flex;flex-direction:column;gap:7px}
+.ctrl label{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);font-weight:600}
+.seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{appearance:none;border:0;background:transparent;font-family:var(--disp);font-weight:600;font-size:13px;color:var(--ink-soft);padding:7px 12px;border-radius:7px;cursor:pointer;transition:.12s}
+.seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:190px;height:4px;border-radius:4px;background:var(--line);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--cobalt);border:3px solid #fff;box-shadow:var(--shadow-sm);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--cobalt);border:3px solid #fff;cursor:pointer}
+.rangeval{font-family:var(--mono);font-size:12px;color:var(--cobalt-ink);font-weight:600;min-width:52px}
+
+.btn{appearance:none;border:1px solid var(--cobalt);background:var(--cobalt);color:#fff;font-family:var(--disp);font-weight:600;font-size:13.5px;padding:10px 16px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:.14s;box-shadow:var(--shadow-sm)}
+.btn:hover{background:var(--cobalt-ink);border-color:var(--cobalt-ink)}
+.btn.ghost{background:var(--surface);color:var(--ink);border-color:var(--line)}
+.btn.ghost:hover{background:var(--surface-2)}
+.btn:disabled{opacity:.55;cursor:default}
+/* tab 00's link out to rag-pipeline.html uses .btn on an <a>; the global a{} rule would
+   otherwise underline it inside the pill */
+a.btn{text-decoration:none;color:var(--ink)}
+a.btn:hover{color:var(--ink)}
+
+.qform{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.qin{flex:1;min-width:220px;font-family:var(--disp);font-size:14.5px;padding:11px 14px;border:1px solid var(--line);border-radius:11px;background:var(--surface);color:var(--ink);outline:none}
+.qin:focus{border-color:var(--cobalt);box-shadow:0 0 0 3px var(--cobalt-soft)}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:18px}
+.chip{appearance:none;border:1px solid var(--line);background:var(--surface-2);font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);padding:6px 11px;border-radius:20px;cursor:pointer;transition:.12s}
+.chip:hover{border-color:var(--cobalt);color:var(--cobalt-ink);background:var(--cobalt-soft)}
+
+/* similarity meter (shared signature component) */
+.rows{display:flex;flex-direction:column;gap:9px}
+.row{display:grid;grid-template-columns:1fr 128px;gap:12px;align-items:center;padding:11px 13px;border:1px solid var(--line-2);border-radius:11px;background:var(--surface);transition:.18s}
+.row.hit{border-color:var(--amber);background:var(--amber-soft)}
+.row.dead{opacity:.5}
+.row .rtext{font-size:13.5px;color:var(--ink);line-height:1.4}
+.row .rtag{font-family:var(--mono);font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.meter{display:flex;align-items:center;gap:8px}
+.meter .track{flex:1;height:6px;border-radius:6px;background:var(--surface-3);overflow:hidden}
+.meter .fill{height:100%;border-radius:6px;background:var(--cobalt);transition:width .5s cubic-bezier(.2,.7,.2,1)}
+.meter .fill.teal{background:var(--teal)} .meter .fill.coral{background:var(--coral)} .meter .fill.amber{background:var(--amber)}
+.meter .val{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink);min-width:34px;text-align:right}
+
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.subcard{background:var(--surface-2);border:1px solid var(--line);border-radius:13px;padding:15px}
+.subcard h4{margin:0 0 12px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.pill{font-family:var(--mono);font-size:10px;font-weight:600;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.05em}
+.pill.coral{background:var(--coral-soft);color:var(--coral)} .pill.teal{background:var(--teal-soft);color:var(--teal)}
+
+/* ---------- embeddings map ---------- */
+.emb-grid{display:grid;grid-template-columns:1fr 250px;gap:16px;align-items:start}
+.emb-stage{position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:
+  radial-gradient(circle at 1px 1px, rgba(19,32,43,.09) 1px, transparent 0) 0 0/22px 22px, var(--surface-2)}
+.emb-stage svg{display:block;width:100%;height:auto}
+.emb-pt{cursor:pointer}
+.emb-pt circle{transition:r .15s, stroke-width .15s}
+.emb-pt text{font-family:var(--mono);font-size:9.5px;fill:var(--ink);pointer-events:none;font-weight:500}
+.emb-side h4{margin:0 0 4px;font-size:12.5px}
+.emb-side .hint{font-size:12px;color:var(--ink-soft);margin:0 0 12px}
+.nn{display:flex;flex-direction:column;gap:7px}
+.nn .nrow{display:grid;grid-template-columns:1fr 74px;gap:8px;align-items:center;font-size:12.5px;padding:7px 10px;border-radius:9px;background:var(--surface-2);border:1px solid var(--line-2)}
+.nn .nrow .sw{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:-1px}
+.nn .nrow b{font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;font-size:11.5px;color:var(--ink-soft)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+/* ---------- the space map (tabs 02 · 03 · 04) ---------- */
+.sm-wrap{display:grid;grid-template-columns:1fr 236px;gap:14px;align-items:start}
+.sm-stage{position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:
+  radial-gradient(circle at 1px 1px, rgba(19,32,43,.075) 1px, transparent 0) 0 0/20px 20px, var(--surface-2)}
+.sm-stage svg{display:block;width:100%;height:auto}
+.sm-pt{transition:opacity .25s}
+.sm-pt.dim{opacity:.3}
+.sm-lab{font-family:var(--mono);font-size:9.5px;font-weight:600;fill:var(--ink)}
+.sm-ring{font-family:var(--mono);font-size:8.5px;fill:var(--ink-faint)}
+.sm-q{font-family:var(--mono);font-size:9.5px;font-weight:600;fill:var(--ink)}
+.sm-key{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:11px;color:var(--ink-soft)}
+.sm-key span{display:inline-flex;align-items:center;gap:6px}
+.sm-key i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.sm-side h5{margin:0 0 7px;font-size:11px;font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);font-weight:600}
+.sm-side h5+.sm-chips{margin-bottom:14px}
+.sm-side h5 i{font-style:normal;color:var(--teal);text-transform:none;letter-spacing:0}
+.sm-chips{display:flex;flex-wrap:wrap;gap:5px}
+.sm-chip{font-family:var(--mono);font-size:10.5px;padding:3px 8px;border-radius:20px;background:var(--surface-2);border:1px solid var(--line-2);color:var(--ink-faint)}
+.sm-chip.on{background:var(--teal-soft);border-color:var(--teal);color:var(--teal);font-weight:600}
+.sm-chip.none{color:var(--ink-soft);line-height:1.45;border-style:dashed;border-radius:9px}
+.sm-chip.gone{background:var(--coral-soft);border-color:var(--coral);color:var(--coral);font-weight:600;text-decoration:line-through;text-decoration-color:rgba(229,72,77,.55)}
+.sm-gone{margin:9px 0 14px;font-size:11.5px;line-height:1.5;color:#7d2226;background:var(--coral-soft);border-left:3px solid var(--coral);border-radius:0 9px 9px 0;padding:8px 11px}
+.sm-gone b{font-family:var(--mono);font-size:11px;color:var(--coral)}
+.sm-math{margin:10px 0 0;font-family:var(--mono);font-size:11px;color:var(--ink-soft);line-height:1.5}
+.sm-math b{color:var(--ink)}
+
+/* ---------- 02 · the document ---------- */
+.doc-steps{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 20px;border-bottom:1px solid var(--line-2);padding-bottom:0}
+.dstep{appearance:none;border:0;background:transparent;cursor:pointer;font-family:var(--disp);font-size:13.5px;font-weight:600;
+  color:var(--ink-soft);padding:9px 12px 11px;border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:8px;border-radius:8px 8px 0 0;transition:.14s}
+.dstep i{font-family:var(--mono);font-style:normal;font-size:10.5px;font-weight:600;width:18px;height:18px;border-radius:50%;
+  background:var(--surface-3);color:var(--ink-faint);display:grid;place-items:center}
+.dstep:hover{background:var(--surface-2);color:var(--ink)}
+.dstep.on{color:var(--ink);border-bottom-color:var(--cobalt)}
+.dstep.on i{background:var(--cobalt);color:#fff}
+.dpanel{display:none}
+.dpanel.on{display:block;animation:rise .26s ease both}
+.doc-hold{display:flex;justify-content:center;padding:4px 0 2px}
+
+/* the printed page — same grammar as the pipeline film, so the room recognises it */
+.page{width:520px;background:var(--surface);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);
+  --pgx:26px;--pgy:22px;padding:var(--pgy) var(--pgx);font-size:10.5px;line-height:1.62;color:var(--ink)}
+.pg-mast{margin:calc(var(--pgy)*-1) calc(var(--pgx)*-1) 16px;background:var(--cobalt);color:#fff;
+  padding:9px var(--pgx);border-radius:5px 5px 0 0;display:flex;justify-content:space-between;align-items:baseline;
+  font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.04em}
+.pg-mast .r{color:#BFD3FF;font-weight:500}
+.pg-fig{background:#F5F8FF;border:1px solid #C9DAFF;border-radius:5px;height:74px;display:grid;place-items:center;margin-bottom:5px}
+.pg-fig svg{width:190px;height:66px}
+.pg-figcap{font-family:var(--mono);font-size:8px;color:var(--cobalt-ink);text-align:center;margin-bottom:15px}
+.pg-part{display:flex;align-items:baseline;gap:8px;font-size:12.5px;font-weight:700;color:var(--cobalt-ink);
+  letter-spacing:-.01em;margin:15px 0 8px;padding-bottom:5px;border-bottom:1.5px solid var(--cobalt-soft)}
+.pg-part i{font-family:var(--mono);font-style:normal;font-size:8.5px;font-weight:600;color:#fff;background:var(--cobalt);
+  padding:2px 6px;border-radius:20px;letter-spacing:.06em;text-transform:uppercase}
+.pg-sec{margin:0 0 9px}
+.pg-h3{display:flex;align-items:baseline;gap:7px;font-size:10.5px;font-weight:700;color:var(--ink);margin-bottom:1px}
+.pg-h3 i{font-family:var(--mono);font-style:normal;font-size:9px;font-weight:600;color:var(--cobalt)}
+.pg-body{margin:0;color:var(--ink-soft)}
+.pg-foot{margin:16px calc(var(--pgx)*-1) calc(var(--pgy)*-1);padding:8px var(--pgx) 0;border-top:1px solid var(--line-2);
+  display:flex;justify-content:space-between;align-items:baseline;font-family:var(--mono);font-size:8px;color:var(--ink-faint)}
+.pg-foot .fn{font-size:9.5px;font-weight:600;color:var(--cobalt-ink)}
+
+/* the nine chunks, laid out as cards */
+.ck-list{display:flex;flex-direction:column;gap:8px}
+.ck{border:1px solid var(--line-2);border-left:3px solid var(--cobalt);border-radius:0 10px 10px 0;background:var(--surface-2);padding:9px 13px}
+.ckh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.ckn{font-family:var(--mono);font-size:10px;color:var(--ink-faint)}
+.cktag{font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--cobalt-ink)}
+.cklost{font-family:var(--mono);font-size:10px;color:var(--coral);text-decoration:line-through;text-decoration-color:rgba(229,72,77,.5)}
+.ckb{font-size:13px;line-height:1.45}
+
+/* step 3 · the index */
+.idx-list{display:flex;flex-direction:column;gap:7px;max-height:352px;overflow:auto}
+.idxrow{border:1px solid var(--line-2);border-radius:10px;background:var(--surface-2);padding:7px 10px}
+.ixt{display:block;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--cobalt-ink);margin-bottom:5px}
+.idx-empty{margin:0;font-size:12.5px;color:var(--ink-soft);line-height:1.5}
+.idx-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
+
+/* ---------- chunking ---------- */
+.chk-out{font-size:14.5px;line-height:1.95;letter-spacing:.005em;padding:6px 2px}
+.chk-piece{padding:2px 1px;border-radius:4px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.chk-meta{display:flex;gap:22px;flex-wrap:wrap;margin:16px 0 0;font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+.chk-meta b{color:var(--ink);font-weight:600}
+
+/* ---------- pipeline ---------- */
+.pipe{position:relative}
+.pipe-lane{display:flex;align-items:center;gap:0;flex-wrap:wrap;margin:6px 0 4px}
+.pipe-lanebar{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;margin:18px 0 10px;display:flex;align-items:center;gap:9px}
+.pipe-lanebar::before{content:"";width:26px;height:2px;border-radius:2px;background:var(--line)}
+.node{flex:1;min-width:96px;text-align:center;padding:14px 8px;border:1px solid var(--line);border-radius:12px;background:var(--surface);transition:.35s;position:relative}
+.node .nlab{font-size:12.5px;font-weight:600}
+.node .nsub{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);margin-top:3px}
+.node.lit{border-color:var(--cobalt);background:var(--cobalt-soft);transform:translateY(-2px);box-shadow:0 6px 16px rgba(47,107,255,.18)}
+.node.lit .nlab{color:var(--cobalt-ink)}
+.arrow{flex:0 0 26px;text-align:center;color:var(--ink-faint);font-size:16px;line-height:1}
+.pipe-cap{min-height:24px;margin-top:14px;font-size:13.5px;color:var(--ink);font-weight:500}
+.pipe-cap span{font-family:var(--mono);font-size:11px;color:var(--cobalt-ink);margin-right:8px}
+
+/* ---------- rerank ---------- */
+.rrk-cols{display:grid;grid-template-columns:1fr 44px 1fr;gap:6px;align-items:center}
+.rrk-list{display:flex;flex-direction:column;gap:8px}
+.rrk-item{display:grid;grid-template-columns:26px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line-2);border-radius:11px;background:var(--surface)}
+.rrk-item .rk{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink-faint)}
+.rrk-item .rt{font-size:12.5px;line-height:1.35}
+.rrk-item .rs{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink)}
+.rrk-item.win{border-color:var(--teal);background:var(--teal-soft)}
+.rrk-item.up .rk{color:var(--teal)} .rrk-item.down{opacity:.62}
+.mv{font-family:var(--mono);font-size:10px;font-weight:600;padding:2px 6px;border-radius:6px;margin-left:6px}
+.mv.up{background:var(--teal-soft);color:var(--teal)} .mv.down{background:var(--coral-soft);color:var(--coral)}
+.rrk-mid{text-align:center;color:var(--cobalt);font-size:20px}
+.rrk-none{margin-top:10px;padding:12px 14px;border:1px dashed var(--coral);border-radius:11px;background:var(--coral-soft);font-size:13px;line-height:1.5;color:#7d2226}
+.rrk-none b{color:var(--coral)}
+.chip.on{border-color:var(--cobalt);background:var(--cobalt-soft);color:var(--cobalt-ink);font-weight:600}
+
+/* the toy cross-encoder, shown working */
+.xenc:not(:empty){margin-top:20px;border-top:1px solid var(--line-2);padding-top:18px}
+.xhead{font-size:13px;line-height:1.55;color:var(--ink-soft);margin-bottom:14px;max-width:78ch}
+.xhead b{color:var(--ink)}
+.xhead i{color:var(--ink-faint)}
+.xsharp{font-family:var(--mono);font-size:12px;background:var(--cobalt-soft);color:var(--cobalt-ink);padding:2px 7px;border-radius:20px;font-weight:600}
+.xrow{display:grid;grid-template-columns:1fr 300px 52px;gap:14px;align-items:center;padding:11px 13px;border:1px solid var(--line-2);border-radius:11px;margin-bottom:8px;background:var(--surface-2)}
+.xrow.pass{border-color:var(--teal);background:var(--teal-soft)}
+.xrow .xt{font-size:12.5px;line-height:1.4}
+.xrow .rtag{display:block;margin-bottom:3px}
+.xbars{display:flex;flex-direction:column;gap:4px}
+.xb{display:grid;grid-template-columns:56px 1fr 30px;gap:7px;align-items:center;position:relative}
+.xbl{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em}
+.xb .track{height:5px;border-radius:5px;background:var(--surface-3);overflow:hidden}
+.xb .fill{height:100%;border-radius:5px;transition:width .45s cubic-bezier(.2,.7,.2,1)}
+.xbv{font-family:var(--mono);font-size:10px;color:var(--ink);text-align:right}
+.xbh{grid-column:2/4;font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);margin-top:-2px}
+.xscore{font-family:var(--mono);font-size:15px;font-weight:600;text-align:right;color:var(--ink)}
+@media(max-width:900px){.xrow{grid-template-columns:1fr;gap:9px}.xscore{text-align:left}}
+
+/* ---------- generation ---------- */
+.gen-q{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.gen-q .lab{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint)}
+.gen-q .qq{font-weight:600;font-size:15px}
+.gen-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.gen-box{border:1px solid var(--line);border-radius:13px;padding:15px;background:var(--surface)}
+.gen-box.bad{border-color:var(--coral)} .gen-box.good{border-color:var(--teal)}
+.gen-box h4{margin:0 0 4px;font-size:12.5px;display:flex;align-items:center;gap:8px}
+.gen-box .tagline{font-size:11px;color:var(--ink-faint);margin:0 0 12px}
+.ctx{font-size:12px;line-height:1.55;background:var(--surface-2);border:1px dashed var(--line);border-radius:9px;padding:10px 12px;margin-bottom:11px;color:var(--ink-soft);display:none}
+.ctx.show{display:block}
+.ctx .clabel{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--cobalt-ink);font-weight:600;display:block;margin-bottom:5px}
+.ans{font-size:14px;line-height:1.55;min-height:40px}
+.ans .cite{font-family:var(--mono);font-size:10.5px;background:var(--teal-soft);color:var(--teal);padding:1px 6px;border-radius:5px;font-weight:600}
+.ans .wrong{background:var(--coral-soft);color:var(--coral);padding:1px 5px;border-radius:5px;font-weight:600}
+.gen-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.live-note{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
+.blink{display:inline-block;width:7px;height:14px;background:var(--ink);margin-left:2px;animation:bl 1s steps(1) infinite;vertical-align:-2px}
+@keyframes bl{50%{opacity:0}}
+
+.foot{margin-top:26px;font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);text-align:center}
+
+/* ---------- 06 hybrid / RRF ---------- */
+.hyb-grid{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:12px;align-items:start}
+.hyb-col{background:var(--surface-2);border:1px solid var(--line);border-radius:13px;padding:14px}
+.hyb-col.fuse{background:var(--cobalt-soft);border-color:#c3d4ff}
+.hyb-col h4{margin:0 0 11px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hyb-list{display:flex;flex-direction:column;gap:7px}
+.hyb-item{display:grid;grid-template-columns:20px 1fr auto;gap:10px;align-items:center;padding:9px 11px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface)}
+.hyb-item .hk{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink-faint)}
+.hyb-item .ht{font-family:var(--mono);font-size:12px;color:var(--ink)}
+.hyb-item .hsnip{font-size:11.5px;color:var(--ink-faint);line-height:1.35;margin-top:2px}
+.hyb-item .hs{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink);text-align:right}
+.hyb-item.win{border-color:var(--teal);background:var(--teal-soft)}
+.hyb-item .hform{font-family:var(--mono);font-size:10px;color:var(--cobalt-ink);margin-top:3px}
+.hyb-empty{font-family:var(--mono);font-size:12px;color:var(--coral);padding:14px 12px;border:1px dashed var(--coral);border-radius:10px;background:var(--coral-soft);line-height:1.5}
+
+/* ---------- 07 contextual retrieval ---------- */
+.ctxr-doc{font-size:12.5px;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:16px}
+.ctxr-doc b{color:var(--ink)}
+.ctxr-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.ctxr-col{background:var(--surface-2);border:1px solid var(--line);border-radius:13px;padding:14px}
+.ctxr-col h4{margin:0 0 11px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.ctxr-chunk{border:1px solid var(--line-2);border-radius:10px;background:var(--surface);padding:10px 12px;margin-bottom:8px}
+.ctxr-chunk.win{border-color:var(--teal);background:var(--teal-soft)}
+.ctxr-chunk.wrong{border-color:var(--coral);background:var(--coral-soft)}
+.ctxr-chunk .cprefix{font-size:12.5px;line-height:1.45;color:var(--cobalt-ink);font-weight:600}
+.ctxr-chunk .cbody{font-size:12.5px;line-height:1.45;color:var(--ink)}
+.ctxr-chunk .cfoot{display:flex;align-items:center;gap:9px;margin-top:8px}
+.ctxr-chunk .cfoot .track{flex:1;height:6px;border-radius:6px;background:var(--surface-3);overflow:hidden}
+.ctxr-chunk .cfoot .fill{height:100%;border-radius:6px;background:var(--cobalt);transition:width .45s cubic-bezier(.2,.7,.2,1)}
+.ctxr-chunk .cfoot .val{font-family:var(--mono);font-size:12px;font-weight:600;min-width:34px;text-align:right}
+.ctxr-chunk .crank{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;margin-bottom:5px;display:block}
+
+/* ---------- 08 evaluation ---------- */
+.ev-grid{display:grid;grid-template-columns:1fr 1.1fr;gap:16px;align-items:start}
+.ev-metrics{display:flex;flex-direction:column;gap:11px}
+.ev-metric{border:1px solid var(--line-2);border-radius:11px;padding:11px 13px;background:var(--surface)}
+.ev-metric .mtop{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:7px}
+.ev-metric .mname{font-size:13px;font-weight:600}
+.ev-metric .mval{font-family:var(--mono);font-size:15px;font-weight:600}
+.ev-metric .track{height:7px;border-radius:7px;background:var(--surface-3);overflow:hidden}
+.ev-metric .fill{height:100%;border-radius:7px;transition:width .4s cubic-bezier(.2,.7,.2,1),background .3s}
+.ev-metric .mhow{font-size:11.5px;color:var(--ink-faint);margin-top:6px;line-height:1.4}
+.ev-metric.gen{background:var(--surface-2)}
+.ev-side .stage-title{margin-bottom:10px}
+.ev-chunks{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.ev-chunk{font-family:var(--mono);font-size:11.5px;padding:7px 11px;border-radius:9px;border:1px solid var(--line-2);background:var(--surface);display:flex;justify-content:space-between;gap:10px}
+.ev-chunk.need{border-color:var(--teal);background:var(--teal-soft);color:var(--teal)}
+.ev-chunk.noise{color:var(--ink-faint)}
+.ev-chunk.miss{border-style:dashed;border-color:var(--coral);background:var(--coral-soft);color:var(--coral)}
+.ev-ans{font-size:13.5px;line-height:1.55;border:1px solid var(--line);border-radius:11px;padding:12px 14px;background:var(--surface)}
+.ev-ans .lbl{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);font-weight:600;display:block;margin-bottom:6px}
+.ev-verdict{margin-top:12px;font-size:13px;padding:11px 13px;border-radius:10px;line-height:1.5}
+.ev-verdict.ok{background:var(--teal-soft);color:#0a6b5f}
+.ev-verdict.warn{background:var(--coral-soft);color:#9b2c30}
+.ev-verdict.mid{background:var(--amber-soft);color:#5b3d0e}
+
+@media (max-width:900px){.hyb-grid{grid-template-columns:1fr}}
+@media (max-width:760px){
+  .emb-grid,.twocol,.gen-cols,.rrk-cols,.ctxr-cols,.ev-grid{grid-template-columns:1fr}
+  .rrk-mid{transform:rotate(90deg);margin:2px 0}
+  .row{grid-template-columns:1fr 100px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="kicker">Retrieval-Augmented Generation · a working session</p>
+    <h1>The RAG Lab: watch retrieval <span class="beam">in motion</span></h1>
+    <p>Nine tools, one document, each one you can poke at. The goal isn't the theory on a slide — it's the intuition you get from changing an input and seeing the ranking, the chunks, or the answer shift in front of you. Walk your students through the tabs left to right; it follows the real pipeline.</p>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-t="ov"><span class="n">00</span>Pipeline</button>
+    <button class="tab" data-t="emb"><span class="n">01</span>Embeddings</button>
+    <button class="tab" data-t="chk"><span class="n">02</span>The document</button>
+    <button class="tab" data-t="ret"><span class="n">03</span>Retrieval</button>
+    <button class="tab" data-t="rrk"><span class="n">04</span>Reranking</button>
+    <button class="tab" data-t="gen"><span class="n">05</span>Generation</button>
+    <button class="tab" data-t="hyb"><span class="n">06</span>Hybrid</button>
+    <button class="tab" data-t="ctxr"><span class="n">07</span>Contextual</button>
+    <button class="tab" data-t="ev"><span class="n">08</span>Evaluation</button>
+  </nav>
+
+  <!-- ============ 00 PIPELINE ============ -->
+  <section class="panel active" data-p="ov">
+    <p class="lead">RAG has <b>two clocks</b>. One runs ahead of time to prepare a searchable knowledge base (indexing). The other runs the instant a question arrives (query time). Everything else in this lab is a zoom-in on one of these boxes. Hit play and follow the pulse.</p>
+    <div class="card pipe">
+      <div class="pipe-lanebar">Offline · indexing (runs once, ahead of time)</div>
+      <div class="pipe-lane" id="laneA"></div>
+      <div class="pipe-lanebar">Online · query time (runs on every question)</div>
+      <div class="pipe-lane" id="laneB"></div>
+      <div class="pipe-cap" id="pipeCap">Press <b>Run the pipeline</b> to trace a question end to end.</div>
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" id="pipePlay">▶ Run the pipeline</button>
+        <a class="btn ghost" href="rag-pipeline.html">⤢ Watch it in slow motion →</a>
+      </div>
+      <div class="note cobalt"><b>The one-line mental model:</b> RAG gives the model an open-book exam. It doesn't make the model know more — it fetches the right page and puts it on the desk before the model answers.</div>
+      <div class="note"><b>This diagram is the map; <code>rag-pipeline.html</code> is the film.</b> The film opens a real document, parses it, cuts it into chunks, turns one into numbers, drops a question into the same space and pastes the results into an actual prompt — thirteen stages, about ten minutes, watched once. This map is what you come back to for the rest of the session to remember where you are.</div>
+    </div>
+  </section>
+
+  <!-- ============ 01 EMBEDDINGS ============ -->
+  <section class="panel" data-p="emb">
+    <p class="lead">An embedding turns a piece of text into a point in space, placed so that <b>similar meaning sits close together</b>. Retrieval is nothing more exotic than "find the nearest points to the question." Click any word to fire a beam to its nearest neighbours.</p>
+    <div class="card">
+      <div class="stage-title"><span class="dot"></span>Meaning-space (a 2-D sketch of a 1,000-D reality)</div>
+      <div class="emb-grid">
+        <div class="emb-stage" id="embStage"></div>
+        <div class="emb-side">
+          <h4 id="embSel">Nearest neighbours</h4>
+          <p class="hint" id="embHint">Click a point on the map. Or drop in a question:</p>
+          <div class="chips" style="margin-bottom:14px">
+            <button class="chip" data-q="50,50">"how much does it cost?"</button>
+            <button class="chip" data-q="18,25">"a small furry pet"</button>
+            <button class="chip" data-q="82,78">"where is the data stored?"</button>
+          </div>
+          <div class="nn" id="embNN"></div>
+          <div class="legend" id="embLegend"></div>
+        </div>
+      </div>
+      <div class="note"><b>Why it matters:</b> the query almost never uses the document's exact words. Because embeddings encode <i>meaning</i>, "how much does it cost" lands next to <span style="font-family:var(--mono)">price / payment / budget</span> even with zero shared letters. That's the whole trick that makes retrieval work — and tab 03 shows what happens without it.</div>
+    </div>
+  </section>
+
+  <!-- ============ 02 THE DOCUMENT ============ -->
+  <section class="panel" data-p="chk">
+    <p class="lead">Before any of the clever parts: <b>this is the document</b>. One product guide, nine sections. Watch it get cut into chunks and put into the index — because those nine chunks are the entire world every tab after this one searches.</p>
+    <div class="card">
+      <div class="doc-steps" id="docSteps">
+        <button class="dstep on" data-k="0"><i>1</i>The page, as printed</button>
+        <button class="dstep" data-k="1"><i>2</i>Cut it into chunks</button>
+        <button class="dstep" data-k="2"><i>3</i>Put it in the index</button>
+      </div>
+
+      <!-- step 1 -->
+      <div class="dpanel on" data-k="0">
+        <div class="doc-hold"><div class="page" id="docPage"></div></div>
+        <div class="note cobalt"><b>One document, not a corpus.</b> In the pipeline film you saw a shelf of six — a manual, support pages, a warranty, a spec sheet, release notes, an email thread. This lab opens exactly one of them and works it end to end. So there is no warranty page here, and the word never appears: remember that when you get to tab 03 and ask for one.</div>
+      </div>
+
+      <!-- step 2 -->
+      <div class="dpanel" data-k="1">
+        <div class="controls">
+          <div class="ctrl">
+            <label>Strategy</label>
+            <div class="seg" id="chkStrat">
+              <button data-s="section" class="on">By section</button>
+              <button data-s="fixed">Fixed size</button>
+              <button data-s="recursive">Recursive</button>
+              <button data-s="sentence">Sentence</button>
+            </div>
+          </div>
+          <div class="ctrl" id="chkSizeCtrl">
+            <label>Chunk size (≈ chars)</label>
+            <div style="display:flex;align-items:center;gap:10px">
+              <input type="range" id="chkSize" min="70" max="520" step="10" value="180">
+              <span class="rangeval" id="chkSizeV">180</span>
+            </div>
+          </div>
+          <div class="ctrl" id="chkOvCtrl">
+            <label>Overlap</label>
+            <div style="display:flex;align-items:center;gap:10px">
+              <input type="range" id="chkOv" min="0" max="40" step="5" value="10">
+              <span class="rangeval" id="chkOvV">10%</span>
+            </div>
+          </div>
+        </div>
+        <div class="chk-out" id="chkOut"></div>
+        <div class="chk-meta">
+          <div>chunks: <b id="chkCount">–</b></div>
+          <div>avg size: <b id="chkAvg">–</b> chars</div>
+          <div>overlap: <b id="chkOvlap">–</b></div>
+        </div>
+        <div class="note" id="chkNote"></div>
+      </div>
+
+      <!-- step 3 -->
+      <div class="dpanel" data-k="2">
+        <div class="sm-wrap">
+          <div class="sm-stage" id="idxMap"></div>
+          <div>
+            <div class="idx-list" id="idxList"></div>
+          </div>
+        </div>
+        <div class="idx-actions">
+          <button class="btn" id="idxGo">Index the next chunk</button>
+          <button class="btn ghost" id="idxAll">Index all nine</button>
+          <span class="live-note" id="idxNote"></span>
+        </div>
+        <div class="note cobalt"><b>That is the whole index.</b> Nine chunks, each one reduced to the handful of concept axes on the right — no sentences, no headings, no page numbers. Where each dot sits comes from those axes alone, so chunks that mean similar things end up close together <i>whatever part of the document they came from</i>: <span style="font-family:var(--mono)">§ stylus</span> has drifted over next to <span style="font-family:var(--mono)">§ power</span> because both are about how long a charge lasts. <b>Everything from tab 03 on is a question dropped into this picture</b> — it lands near the chunks it matches, and the nearest one is what retrieval returns.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 03 RETRIEVAL ============ -->
+  <section class="panel" data-p="ret">
+    <p class="lead">Same question, two retrievers, side by side. <b>Keyword search</b> matches literal words. <b>Semantic search</b> matches meaning. Try the first chip — it's the moment students remember.</p>
+    <div class="card">
+      <div class="qform">
+        <input class="qin" id="retQ" placeholder="Ask the Aeronote docs something…" value="battery life">
+        <button class="btn" id="retGo">Retrieve</button>
+      </div>
+      <div class="chips">
+        <button class="chip" data-q="battery life">battery life</button>
+        <button class="chip" data-q="can I get my money back?">can I get my money back?</button>
+        <button class="chip" data-q="export notes as PDF">export notes as PDF</button>
+        <button class="chip" data-q="is it heavy?">is it heavy?</button>
+        <button class="chip" data-q="how long is the warranty?">how long is the warranty? <span style="opacity:.6">· nothing is close</span></button>
+      </div>
+      <div class="sm-wrap" style="margin-bottom:16px">
+        <div class="sm-stage" id="retMap"></div>
+        <div id="retSide"></div>
+      </div>
+      <div class="sm-key">
+        <span><i style="background:#2F6BFF"></i>1 · the device</span>
+        <span><i style="background:#0E9C8B"></i>2 · using it</span>
+        <span><i style="background:#7A5AF8"></i>3 · buying and support</span>
+        <span><i style="background:#13202B"></i>the question</span>
+      </div>
+      <div class="note cobalt" style="margin-bottom:18px"><b>How to read it.</b> The nine dots are the chunks, and they <b>never move</b> — that is the space, laid out by what the chunks mean. The black dot is your question, dropped into it. <b>It lands near the chunks it matches</b>, so you can see the answer before you read a single number; the dashed rings around it are the similarity scale and the three nearest get their score printed. Two things to point at: <span style="font-family:var(--mono)">§ stylus</span> and <span style="font-family:var(--mono)">§ power</span> sit together even though the document files them in different parts — <b>the space does not respect your table of contents</b> — and a question with nothing to match lands out in open ground, away from everything.</div>
+      <div class="twocol">
+        <div class="subcard">
+          <h4>Keyword search <span class="pill coral">lexical · BM25-style</span></h4>
+          <div class="rows" id="retLex"></div>
+        </div>
+        <div class="subcard">
+          <h4>Semantic search <span class="pill teal">embeddings</span></h4>
+          <div class="rows" id="retSem"></div>
+        </div>
+      </div>
+      <div class="note" id="retNote"><b>The lesson:</b> keyword search breaks on <i>vocabulary mismatch</i> — when the user's words differ from the document's. Semantic search reads through the words to the meaning. Production systems usually run <b>both and fuse the rankings</b> (hybrid search), because keyword is unbeatable for exact terms like error codes, SKUs and names.</div>
+    </div>
+  </section>
+
+  <!-- ============ 04 RERANK ============ -->
+  <section class="panel" data-p="rrk">
+    <p class="lead">First-stage retrieval is fast but blunt — it grabs a shortlist. A <b>reranker</b> then reads the question and each candidate <i>together</i> and judges them one at a time. Too slow for a whole corpus, perfect for a shortlist. Every number below is computed from the same nine chunks you indexed in tab 02 — including the ones that make retrieval look bad.</p>
+    <div class="card">
+      <div class="chips">
+        <button class="chip on" data-q="how do I get my notes onto my computer?">how do I get my notes onto my computer? <span style="opacity:.6">· it reorders</span></button>
+        <button class="chip" data-q="how long is the warranty?">how long is the warranty? <span style="opacity:.6">· it refuses</span></button>
+      </div>
+      <div class="gen-q" style="margin-bottom:16px">
+        <span class="lab">query</span>
+        <span class="qq" id="rrkQ"></span>
+      </div>
+
+      <div class="sm-wrap" style="margin-bottom:18px">
+        <div class="sm-stage" id="rrkMap"></div>
+        <div id="rrkSide"></div>
+      </div>
+      <div class="note" id="rrkWhy"></div>
+
+      <div class="rrk-cols" style="margin-top:20px">
+        <div>
+          <div class="stage-title" style="margin-bottom:12px"><span class="dot" style="background:var(--ink-faint)"></span>Stage 1 — vector retrieval</div>
+          <div class="rrk-list" id="rrkBefore"></div>
+        </div>
+        <div class="rrk-mid">→</div>
+        <div>
+          <div class="stage-title" style="margin-bottom:12px"><span class="dot" style="background:var(--teal)"></span>Stage 2 — after reranking</div>
+          <div class="rrk-list" id="rrkAfter"></div>
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <button class="btn" id="rrkGo">Run reranker</button>
+        <span class="live-note" id="rrkState"></span>
+      </div>
+
+      <div class="xenc" id="rrkXenc"></div>
+
+      <div class="note cobalt"><b>The mechanism, in one sentence:</b> a bi-encoder embeds the question and the chunk <i>separately</i> and compares two vectors — that is stage 1, and by the time it compares them the actual words are long gone. A cross-encoder reads the question and the chunk <b>together, in one pass</b>, so it can ask whether this text answers <i>that</i> question. Far more accurate, far too slow to run over a whole corpus, ideal over a shortlist of twenty. In real systems this is often the single biggest quality jump for the least work.</div>
+    </div>
+  </section>
+
+  <!-- ============ 05 GENERATION ============ -->
+  <section class="panel" data-p="gen">
+    <p class="lead">Finally, the payoff. Same private question, asked two ways: the raw model alone, versus the model handed the retrieved chunk. This is <b>why RAG exists</b>.</p>
+    <div class="card">
+      <div class="gen-q">
+        <span class="lab">question</span>
+        <span class="qq">"What's the return window on the Aeronote tablet?"</span>
+      </div>
+      <div class="gen-actions">
+        <button class="btn ghost" id="genCtxToggle">Show retrieved context</button>
+        <button class="btn" id="genLive">▶ Generate both answers</button>
+        <span class="live-note" id="genLiveNote"></span>
+      </div>
+      <div class="gen-cols">
+        <div class="gen-box bad">
+          <h4>🚫 No retrieval — raw model</h4>
+          <p class="tagline">answering from training memory alone</p>
+          <div class="ans" id="genBad"></div>
+        </div>
+        <div class="gen-box good">
+          <h4>✅ With retrieval — RAG</h4>
+          <p class="tagline">grounded in the fetched chunk</p>
+          <div class="ctx" id="genCtx"><span class="clabel">retrieved context · returns policy</span></div>
+          <div class="ans" id="genGood"></div>
+        </div>
+      </div>
+      <div class="note cobalt"><b>The takeaway:</b> RAG didn't make the model smarter. It handed over the right page at answer time. The model stops guessing (<span style="font-family:var(--mono)">"probably 30 days"</span>), answers correctly, and can <b>cite its source</b> — which is what turns a demo into something a business will trust.</div>
+    </div>
+  </section>
+
+  <!-- ============ 06 HYBRID ============ -->
+  <section class="panel" data-p="hyb">
+    <p class="lead">Tab 03 showed keyword search failing. It doesn't follow that you should throw it away — each retriever has a <b>different blind spot</b>. Hybrid search runs both and fuses the two ranked lists with <b>Reciprocal Rank Fusion</b>. Click the two chips in order; they're mirror images.</p>
+    <div class="card">
+      <div class="qform">
+        <input class="qin" id="hybQ" placeholder="Ask the Aeronote docs something…" value="battery life">
+        <button class="btn" id="hybGo">Retrieve &amp; fuse</button>
+      </div>
+      <div class="chips">
+        <button class="chip" data-q="battery life">battery life <span style="opacity:.6">· keyword is blind</span></button>
+        <button class="chip" data-q="E-42">E-42 <span style="opacity:.6">· embeddings are blind</span></button>
+        <button class="chip" data-q="export notes as PDF">export notes as PDF <span style="opacity:.6">· both agree</span></button>
+      </div>
+      <div class="hyb-grid">
+        <div class="hyb-col">
+          <h4>Sparse <span class="pill coral">BM25-style</span></h4>
+          <div class="hyb-list" id="hybLex"></div>
+        </div>
+        <div class="hyb-col">
+          <h4>Dense <span class="pill teal">embeddings</span></h4>
+          <div class="hyb-list" id="hybSem"></div>
+        </div>
+        <div class="hyb-col fuse">
+          <h4>Fused · RRF <span class="pill" style="background:#fff;color:var(--cobalt-ink)">k = 60</span></h4>
+          <div class="hyb-list" id="hybFus"></div>
+        </div>
+      </div>
+      <div class="note" id="hybNote"></div>
+      <div class="note cobalt"><b>The formula is the whole algorithm:</b> <span style="font-family:var(--mono)">score(d) = Σ 1 / (k + rank(d))</span>, summed over every list the document appears in, with <span style="font-family:var(--mono)">k = 60</span> by convention. Note what it uses: <b>ranks, not scores.</b> That's the point — BM25 scores and cosine similarities live on incompatible scales and can't be averaged, but "came 2nd" means the same thing in both lists. A document that shows up in <i>both</i> lists gets two contributions and pulls ahead.</div>
+    </div>
+  </section>
+
+  <!-- ============ 07 CONTEXTUAL RETRIEVAL ============ -->
+  <section class="panel" data-p="ctxr">
+    <p class="lead">Chunking has a cost nobody mentions: a chunk is torn out of its document and <b>loses what it was about</b>. "This does not cover…" — this <i>what</i>? <b>Contextual Retrieval</b> (Anthropic's technique) fixes it by having an LLM write a one-line situating blurb for each chunk, prepending it, and embedding <i>that</i>. Toggle it and watch the ranking flip.</p>
+    <div class="card">
+      <div class="ctxr-doc"><b>Back to the document.</b> This is <span style="font-family:var(--mono)">§ 3.2 Returns</span> — chunk 8 from tab 02 — opened up and split three ways, the way a longer policy page really would be. Chunk 1 is the sentence you have already seen retrieved in tabs 03 and 05. Notice that only chunk 1 ever says <i>return</i>.</div>
+      <div class="gen-q" style="margin-bottom:16px">
+        <span class="lab">query</span>
+        <span class="qq">"Can I return a tablet with a cracked screen?"</span>
+      </div>
+      <div class="ctxr-cols">
+        <div class="ctxr-col">
+          <h4>Chunks as-is <span class="pill coral">naive</span></h4>
+          <div id="ctxrRaw"></div>
+        </div>
+        <div class="ctxr-col">
+          <h4>With generated context <span class="pill teal">contextual</span></h4>
+          <div id="ctxrCtx"></div>
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn" id="ctxrGo">Add context &amp; re-embed</button>
+        <span class="live-note" id="ctxrNote2"></span>
+      </div>
+      <div class="note" id="ctxrNote"></div>
+    </div>
+  </section>
+
+  <!-- ============ 08 EVALUATION ============ -->
+  <section class="panel" data-p="ev">
+    <p class="lead">This is what separates a demo from a system. The rule that matters: <b>measure retrieval and generation separately.</b> Here's why — drag <b>k</b> down to 1 and watch faithfulness stay green while the answer quietly goes half-wrong.</p>
+    <div class="card">
+      <div class="gen-q" style="margin-bottom:16px">
+        <span class="lab">question</span>
+        <span class="qq">"How long do the Aeronote and its stylus last on a charge?"</span>
+      </div>
+      <div class="controls">
+        <div class="ctrl">
+          <label>Chunks retrieved (top-k)</label>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="evK" min="1" max="5" step="1" value="2">
+            <span class="rangeval" id="evKV">k = 2</span>
+          </div>
+        </div>
+      </div>
+      <div class="ev-grid">
+        <div>
+          <div class="stage-title"><span class="dot"></span>Metrics</div>
+          <div class="ev-metrics" id="evMetrics"></div>
+        </div>
+        <div class="ev-side">
+          <div class="stage-title"><span class="dot" style="background:var(--teal)"></span>What retrieval handed the model</div>
+          <div class="ev-chunks" id="evChunks"></div>
+          <div class="ev-ans" id="evAns"></div>
+          <div class="ev-verdict" id="evVerdict"></div>
+        </div>
+      </div>
+      <div class="note"><b>The trap, stated plainly:</b> at <span style="font-family:var(--mono)">k = 1</span> both generation metrics are green — faithfulness <span style="font-family:var(--mono)">0.91</span>, answer relevancy <span style="font-family:var(--mono)">0.90</span>. Every claim really is supported, and the answer really is on topic. The generator did nothing wrong. But retrieval never handed it the stylus chunk, so the answer silently omits half the question. <b>A generation-only dashboard is entirely green through this failure.</b> Only <i>context recall</i> catches it — and context recall is the metric teams skip, because unlike the other three it requires someone to sit down and label which chunks <i>should</i> have been retrieved for each question. <b>That labelling is the actual work of RAG evaluation.</b></div>
+      <div class="note cobalt"><b>And the other end:</b> push k to 5 and recall is perfect, but context precision collapses to 0.40 and faithfulness slips too. More context is not free — you pay in tokens, in latency, and in the "lost in the middle" effect, where models under-use material buried in the middle of a long prompt. <b>k is a tuned parameter, not a default.</b> This is what a retrieval eval is for.</div>
+    </div>
+  </section>
+
+  <div class="foot">The RAG Lab · built for a teaching session · every score here is computed live in your browser</div>
+</div>
+
+<script>
+/* ================= TAB SWITCHING ================= */
+const tabs=document.getElementById('tabs');
+tabs.addEventListener('click',e=>{
+  const b=e.target.closest('.tab'); if(!b)return;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelector('.panel[data-p="'+b.dataset.t+'"]').classList.add('active');
+});
+
+/* ================= THE DOCUMENT — one corpus, shared by every tab =================
+   Everything from tab 02 onward searches THIS and only this. The old file had five
+   unrelated hardcoded datasets, so each tab was a fresh assertion the room had to take
+   on trust; worse, the returns chunk carried a hand-typed 'warranty' in its concept
+   list, which is the *index*, so "how long is the warranty?" scored 0.75 off a literal
+   token hit while the speaker notes claimed the corpus had no warranty in it. It now
+   genuinely doesn't — see the assertions at the bottom of this block.
+
+   Two rules for the section headings, both load-bearing:
+     · they must not contain "battery", "heavy", "money back" or "warranty" — tab 03's
+       four headline demos all depend on those words being absent from the indexed text;
+     · the heading is NOT part of the chunk. It becomes the § tag — metadata that gets
+       stripped when the chunk is cut out of the page. That stripping is the exact wound
+       tab 07 heals by prepending it back. */
+const DOCUMENT={
+  title:'Aeronote — Product Guide & Policies',
+  slug:'Rev. 4 · internal',
+  foot:'Aeronote Ltd · confidential',
+  page:'1',
+  parts:[
+    {n:'1', name:'The device', secs:[
+      {n:'1.1', h:'The reading surface', id:'display', tag:'§ display',
+       text:"The Aeronote is a 10.3-inch e-ink tablet for handwriting and reading; its matte screen cuts glare and eye strain.",
+       con:['display','reading','writing','device']},
+      {n:'1.2', h:'Time between charges', id:'battery', tag:'§ power',
+       text:"On a single charge it runs for about three weeks of typical daily note-taking before it needs power again.",
+       con:['battery','power','duration','endurance']},
+      {n:'1.3', h:'Size and weight', id:'weight', tag:'§ size',
+       text:"The device weighs 375 grams and is about as thick as ten sheets of paper, so it slips easily into a bag.",
+       con:['weight','size','portability','device']}
+    ]},
+    {n:'2', name:'Using it', secs:[
+      {n:'2.1', h:'Notes and export', id:'export', tag:'§ sync',
+       text:"Notes sync automatically to the cloud, and any page can be exported as a PDF or plain text file.",
+       con:['export','file','sync','cloud','notes']},
+      {n:'2.2', h:'The stylus', id:'stylus', tag:'§ stylus',
+       text:"The stylus charges wirelessly on the side of the tablet and lasts roughly a full day of writing per charge.",
+       con:['stylus','writing','battery','power','duration']},
+      {n:'2.3', h:'Firmware updates', id:'firmware', tag:'§ updates',
+       text:"Firmware updates arrive monthly and add new pen styles and reading fonts.",
+       con:['firmware','software','features','reading','writing']}
+    ]},
+    {n:'3', name:'Buying and support', secs:[
+      {n:'3.1', h:'Pricing', id:'price', tag:'§ pricing',
+       text:"The Aeronote costs $399 for the base model; a premium bundle with folio cover and extra pen tips is $449.",
+       con:['price','money','bundle','device']},
+      {n:'3.2', h:'Returns', id:'refund', tag:'§ returns',
+       text:"You can return the Aeronote within 45 days of delivery for a full refund, no questions asked.",
+       con:['refund','money','policy','return']},
+      {n:'3.3', h:'If something goes wrong', id:'error', tag:'§ troubleshooting',
+       text:"If the screen stops responding, error code E-42 means the digitizer needs a reset; hold the power button for ten seconds.",
+       con:['support','error','reset']}
+    ]}
+  ]
+};
+/* The nine chunks, derived — not re-typed. Splitting the document by section and
+   building the index are literally the same operation, which is what tab 02 shows. */
+const SECTIONS=DOCUMENT.parts.reduce((a,p)=>a.concat(p.secs.map(s=>({...s,part:p}))),[]);
+const CORPUS=SECTIONS.map((s,i)=>({id:s.id,tag:s.tag,text:s.text,con:s.con,ix:i,sec:s}));
+const BY_ID={};CORPUS.forEach(c=>{BY_ID[c.id]=c;});
+
+/* ================= THE INDEX ================= */
+/* Query word → concept axes. This IS the query encoder: the concept list is a sparse
+   binary vector and `con` above is the same thing for a chunk, so cosine over the two
+   is an honest vector similarity rather than a metaphor for one. */
+const CONMAP={battery:['battery','power','duration'],life:['duration','endurance'],charge:['battery','power'],power:['power','battery'],last:['duration','endurance'],lasts:['duration','endurance'],long:['duration'],
+  price:['price','money'],cost:['price','money'],costs:['price','money'],money:['money','price'],much:['price'],cheap:['price'],expensive:['price'],pay:['money','price'],
+  refund:['refund','money','policy'],return:['return','refund','policy'],returned:['return','refund','policy'],back:['return','refund'],warranty:['warranty','policy','refund'],
+  export:['export','file'],pdf:['export','file'],file:['export','file'],save:['export','file'],
+  sync:['sync','cloud'],cloud:['sync','cloud'],backup:['sync','cloud'],wifi:['sync','cloud'],internet:['sync','cloud'],
+  notes:['notes','writing'],note:['notes','writing'],writing:['writing'],write:['writing'],handwriting:['writing'],
+  pen:['stylus','writing'],stylus:['stylus','writing'],
+  /* heavy maps to TWO axes on purpose. With one, |q|=1 caps § size at 1/√4 = 0.50, and
+     the room sees that sitting beside "battery life"'s 1.00 in the same four-chip walk —
+     which reads as broken, not as a lesson. Heavy genuinely is about portability, and
+     nothing else in the corpus carries either axis, so there are no false positives. */
+  weight:['weight','portability'],weigh:['weight'],weighs:['weight'],heavy:['weight','portability'],light:['weight','portability'],portable:['portability'],bag:['portability'],
+  thick:['size','weight'],thin:['size'],size:['size'],dimensions:['size'],grams:['weight'],inch:['display','size'],
+  screen:['display'],display:['display'],glare:['display'],eye:['display','reading'],eyestrain:['display','reading'],reading:['reading'],read:['reading'],colour:['display'],color:['display'],
+  firmware:['firmware','software'],update:['firmware','software'],updates:['firmware','software'],software:['firmware','software'],app:['software'],feature:['features'],features:['features'],
+  water:['damage'],cracked:['damage'],crack:['damage'],damage:['damage'],damaged:['damage'],accidental:['damage'],
+  error:['support','error'],broken:['support','error'],frozen:['support','error'],freeze:['support','error'],stuck:['support','error'],crash:['support','error'],reset:['reset','support'],fix:['support','reset'],help:['support'],support:['support']};
+const STOP=new Set("the a an of to in on for and or is are was be it its as at by with from this that you your i we they do does can how what when where which my me it's on one get if all".split(" "));
+/* hyphens are preserved so identifiers like "e-42" survive tokenisation intact */
+function toks(s){return s.toLowerCase().replace(/[^a-z0-9\s'\-]/g," ").split(/\s+/).map(w=>w.replace(/^-+|-+$/g,'')).filter(w=>w&&!STOP.has(w));}
+const isCode=t=>/\d/.test(t);
+function qConcepts(q){const set=new Set();toks(q).forEach(t=>{(CONMAP[t]||[]).forEach(c=>set.add(c));});return set;}
+/* How many of the nine chunks carry each axis. Two things read this and they must agree:
+   the map's coral "this axis exists nowhere" chip, and tab 03's and tab 04's prose. An
+   axis with DF 0 is the entire warranty story, so it is computed once, here. */
+const DOCFREQ={};CORPUS.forEach(c=>c.con.forEach(x=>{DOCFREQ[x]=(DOCFREQ[x]||0)+1;}));
+const absentAxes=q=>Array.from(qConcepts(q)).filter(c=>!DOCFREQ[c]);
+
+function lexScore(q,chunk){
+  const qs=new Set(toks(q));if(!qs.size)return 0;
+  const cs=new Set(toks(chunk));let hit=0;qs.forEach(t=>{if(cs.has(t))hit++;});
+  return hit/qs.size;
+}
+/* Cosine over the concept vectors. The old form was hit/|q|, which is not a vector
+   similarity and cannot be drawn — for "how do I get my notes onto my computer?" it
+   returns a FOUR-WAY TIE at 0.50 and the winner is whatever Array.sort happens to do.
+   Cosine breaks that by chunk length, which is the honest behaviour: a shorter chunk
+   matching the same concept is a tighter match. Every scripted demo was re-derived
+   against it — see the assertions below. */
+function semScore(q,chunk){
+  const qc=qConcepts(q);
+  if(qc.size===0){
+    // Nothing in the query maps to a concept this embedding space knows. A real embedder
+    // does NOT quietly fall back to keyword matching here: an opaque identifier like
+    // "E-42" shatters into meaningless subword tokens and lands nowhere useful. So a
+    // query made only of codes/numbers scores zero everywhere — that blind spot is the
+    // entire argument for hybrid search in tab 06.
+    const words=toks(q).filter(t=>!isCode(t));
+    if(!words.length)return 0;
+    return 0.35*lexScore(words.join(' '),chunk.text); // weak echo for merely-unmapped words
+  }
+  let hit=0;const cc=new Set(chunk.con);qc.forEach(c=>{if(cc.has(c))hit++;});
+  if(!hit)return 0;
+  return hit/(Math.sqrt(qc.size)*Math.sqrt(chunk.con.length));
+}
+/* Every ranking in the lab goes through this. Ties are real — four chunks share the
+   'writing' axis — and Array.sort on equal keys is implementation-ordered, so without
+   a second key the same query can rank differently in two browsers. Document order is
+   the tiebreak: stable, meaningful, and visible on the page. */
+function byScore(a,b){return b.s-a.s || a.ix-b.ix;}
+function scoreAll(q,scorer){return CORPUS.map(c=>({...c,s:scorer(c)})).sort(byScore);}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* ================= THE MAP =================
+   A real 2-D picture of the index. The nine chunks hold fixed positions; the question is
+   dropped into the space and lands nearer the chunks it matches. That is the whole point —
+   you should be able to see which chunks a question is close to without reading a number.
+
+   Getting that to be HONEST is the hard part, and it is worth explaining because the
+   obvious approach fails. Nine chunks live in a ~30-axis binary space where most pairs
+   share nothing at all, so no flat picture preserves all their distances. A layout solved
+   for chunk-to-chunk distance alone (plain MDS) then cannot hold the queries: on four of
+   the eight scripted questions it drew some chunk NEARER than one with a strictly better
+   score, i.e. the picture contradicted the numbers printed on it.
+
+   So the layout is solved for the thing the map actually has to show. Chunk positions and
+   query positions were optimised together against the ordering constraints — for every
+   query, every chunk with a higher cosine must be drawn closer — by gradient descent on a
+   hinge loss, plus a term keeping chunk-to-chunk distances near sqrt(2-2·cos) (the true
+   metric on unit-normalised vectors) and a repulsion term so no two dots crowd. The result
+   below satisfies **every** ordering constraint across twenty queries with 0.48 of
+   separation to spare.
+
+   These coordinates are solver output, not taste, and they are not allowed to rot:
+   `verify-lab.js` re-derives every constraint from CORPUS and fails loudly if an edit to a
+   chunk's concepts makes the picture start lying. Run it after touching DOCUMENT. */
+const SpaceMap=(function(){
+  const N=CORPUS.length, W=560, H=392;
+  const PART_COL=['#2F6BFF','#0E9C8B','#7A5AF8'];
+  const partIx=c=>DOCUMENT.parts.indexOf(c.sec.part);
+  const DF=DOCFREQ;
+
+  /* solved offline against the constraints above; order matches CORPUS */
+  const LAYOUT=[
+    [ 0.03044,-0.54107],  // § display
+    [-0.27550, 0.87203],  // § power
+    [ 0.62475,-0.82413],  // § size
+    [-0.56535,-0.81093],  // § sync
+    [-0.49918, 0.45130],  // § stylus
+    [-0.78125,-0.09029],  // § updates
+    [ 0.76254,-0.25429],  // § pricing
+    [ 0.83418, 0.32856],  // § returns
+    [ 0.58945, 0.97300]   // § troubleshooting
+  ];
+
+  function cosCon(a,b){
+    const A=a instanceof Set?a:new Set(a), B=b instanceof Set?b:new Set(b);
+    if(!A.size||!B.size)return 0;
+    let hit=0;A.forEach(c=>{if(B.has(c))hit++;});
+    return hit/(Math.sqrt(A.size)*Math.sqrt(B.size));
+  }
+  /* unit-normalised vectors put |a−b| = sqrt(2−2cos), so this is a genuine distance and
+     the rings drawn round the question are a real similarity scale, not a decoration. */
+  /* Floored so a perfect match doesn't land exactly on the chunk it matches and hide it —
+     at cos 1.00 the true distance is 0 and § power disappeared under the question dot. The
+     floor only bites above cos 0.985, so it cannot reorder anything. */
+  const FLOOR=0.19;
+  const dist=c=>Math.max(FLOOR,Math.sqrt(Math.max(0,2-2*c)));
+
+  /* Fit the chunks into the middle of the frame. The margin is not decoration: a question
+     that matches nothing belongs outside the cloud and needs somewhere to go. */
+  const xs=LAYOUT.map(p=>p[0]), ys=LAYOUT.map(p=>p[1]);
+  const x0=Math.min.apply(null,xs), x1=Math.max.apply(null,xs);
+  const y0=Math.min.apply(null,ys), y1=Math.max.apply(null,ys);
+  const K=Math.min(W*0.60/(x1-x0), H*0.60/(y1-y0));
+  const mx=(x0+x1)/2, my=(y0+y1)/2;
+  const SX=v=>W/2+(v-mx)*K, SY=v=>H/2-(v-my)*K;      // y flipped: maths up, screen down
+  const PT=LAYOUT.map(p=>({x:SX(p[0]),y:SY(p[1])}));
+
+  /* Where does a question sit? Chosen, not merely fitted: the search minimises distance
+     error but treats any ordering violation as costing more than any amount of fit, so it
+     only ever trades one away when the geometry makes it impossible. */
+  function placeQuery(qc){
+    const cs=CORPUS.map(c=>cosCon(qc,c.con));
+    const dq=cs.map(v=>dist(v)*K);
+    const wq=dq.map(d=>1/Math.pow(Math.max(0.35*K,d),2));
+    const live=cs.map((v,i)=>i).filter(i=>cs[i]>0).sort((a,b)=>cs[b]-cs[a]||a-b);
+    const EPS=0.005, d=new Array(N);
+    function cost(x,y){
+      let fit=0;
+      for(let i=0;i<N;i++){d[i]=Math.hypot(PT[i].x-x,PT[i].y-y);fit+=wq[i]*(d[i]-dq[i])*(d[i]-dq[i]);}
+      let bad=0;
+      for(let a=0;a<N;a++)for(let b=0;b<N;b++)
+        if(cs[a]>cs[b]+EPS && d[a]>=d[b]) bad++;
+      return fit+bad*1e7;
+    }
+    let bx=W/2,by=H/2,bc=Infinity;
+    for(let x=16;x<=W-16;x+=4)for(let y=20;y<=H-18;y+=4){
+      const c=cost(x,y); if(c<bc){bc=c;bx=x;by=y;}
+    }
+    for(let st=4;st>=0.4;st/=2)for(let pass=0;pass<3;pass++)for(let a=0;a<8;a++){
+      const nx=bx+Math.cos(a*Math.PI/4)*st, ny=by+Math.sin(a*Math.PI/4)*st;
+      if(nx<14||nx>W-14||ny<18||ny>H-16) continue;
+      const c=cost(nx,ny); if(c<bc){bc=c;bx=nx;by=ny;}
+    }
+    return {x:bx,y:by,clean:bc<1e7,live:live};
+  }
+
+  const LBL='style="paint-order:stroke;stroke:#fff;stroke-width:3.2px;stroke-linejoin:round"';
+
+  function create(host,side){
+    let state={q:'',reveal:N,marks:{},top:3};
+    function render(){
+      const qc=state.q?qConcepts(state.q):null;
+      const liveQ=!!(qc&&qc.size);
+      const scored=state.q?scoreAll(state.q,c=>semScore(state.q,c)):[];
+      const sBy={};scored.forEach(o=>{sBy[o.id]=o.s;});
+      const topIx={};scored.filter(o=>o.s>0).slice(0,state.top).forEach((o,i)=>{topIx[o.id]=i;});
+      const qp=liveQ?placeQuery(qc):null;
+      let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="the index as a 2-D space">';
+
+      /* similarity rings around the question: distance really is sqrt(2−2·cos), so these
+         are a scale you can read a score off, not a flourish */
+      if(qp){
+        /* Label each ring on the side facing the middle of the frame. Straight up put the
+           outer rings' labels off the top edge whenever the question sat high. */
+        let ux=W/2-qp.x, uy=H/2-qp.y, ul=Math.hypot(ux,uy);
+        if(ul<1){ux=0;uy=1;ul=1;} else {ux/=ul;uy/=ul;}
+        const base=Math.atan2(uy,ux);
+        const taken=PT.map(p=>({x:p.x,y:p.y-11}));      // where the chunk labels sit
+        const RINGS=[[.75,'0.75'],[.5,'0.50'],[.25,'0.25']];
+        RINGS.forEach(g=>{
+          const r=dist(g[0])*K;
+          s+='<circle cx="'+qp.x.toFixed(1)+'" cy="'+qp.y.toFixed(1)+'" r="'+r.toFixed(1)+
+             '" fill="none" stroke="#C3D0DC" stroke-width="1" stroke-dasharray="3 4"/>';
+        });
+        /* One angle for all three, so the scale reads outward in order. Labelling each ring
+           independently let 0.75 end up further from the question than 0.25. */
+        let ang=null;
+        for(const off of [0,-.45,.45,-.9,.9,-1.4,1.4,-2,2,Math.PI]){
+          const a=base+off;
+          if(RINGS.every(g=>{
+            const r=dist(g[0])*K, lx=qp.x+Math.cos(a)*r, ly=qp.y+Math.sin(a)*r;
+            return lx>18&&lx<W-18&&ly>14&&ly<H-8&&!taken.some(t=>Math.abs(t.x-lx)<42&&Math.abs(t.y-ly)<15);
+          })){ang=a;break;}
+        }
+        if(ang!==null) RINGS.forEach(g=>{
+          const r=dist(g[0])*K;
+          s+='<text class="sm-ring" x="'+(qp.x+Math.cos(ang)*r).toFixed(1)+'" y="'+(qp.y+Math.sin(ang)*r+3).toFixed(1)+
+             '" text-anchor="middle">'+g[1]+'</text>';
+        });
+        scored.filter(o=>o.s>0).slice(0,state.top).forEach(o=>{
+          const p=PT[o.ix];
+          s+='<line x1="'+qp.x.toFixed(1)+'" y1="'+qp.y.toFixed(1)+'" x2="'+p.x.toFixed(1)+'" y2="'+p.y.toFixed(1)+
+             '" stroke="'+(state.marks[o.id]==='wrong'?'#E5484D':'#0E9C8B')+'" stroke-width="1.6" opacity=".85"/>';
+        });
+      }
+
+      CORPUS.forEach((c,i)=>{
+        if(i>=state.reveal)return;
+        const p=PT[i], sc=liveQ?(sBy[c.id]||0):0;
+        const mk=state.marks[c.id], isTop=topIx[c.id]!==undefined;
+        const col=mk==='wrong'?'#E5484D':(mk==='win'||isTop?'#0E9C8B':PART_COL[partIx(c)]);
+        const dim=liveQ&&!isTop&&!mk;
+        const r=(mk||isTop)?7:5.4;
+        s+='<g class="sm-pt'+(dim?' dim':'')+'">';
+        if(mk||isTop)s+='<circle cx="'+p.x+'" cy="'+p.y+'" r="'+(r+3.6)+'" fill="'+col+'" opacity=".18"/>';
+        s+='<circle cx="'+p.x+'" cy="'+p.y+'" r="'+r+'" fill="'+col+'" stroke="#fff" stroke-width="1.8"/>';
+        const above=p.y>36;
+        s+='<text class="sm-lab" x="'+p.x+'" y="'+(above?p.y-11:p.y+19)+'" text-anchor="middle" '+LBL+'>'+
+           escHtml(c.tag.replace('§ ',''))+(liveQ&&(isTop||mk)?'  '+sc.toFixed(2):'')+'</text></g>';
+      });
+
+      if(qp){
+        s+='<circle cx="'+qp.x.toFixed(1)+'" cy="'+qp.y.toFixed(1)+'" r="14" fill="#13202B" opacity=".09"/>'+
+           '<circle cx="'+qp.x.toFixed(1)+'" cy="'+qp.y.toFixed(1)+'" r="6.6" fill="#13202B" stroke="#fff" stroke-width="2"/>'+
+           /* always below the dot: chunk labels sit above theirs, so the two can never
+              collide even when the question lands right on top of a perfect match */
+           '<text class="sm-q" x="'+qp.x.toFixed(1)+'" y="'+(qp.y<H-22?qp.y+21:qp.y-14).toFixed(1)+'" text-anchor="middle" '+LBL+'>the question</text>';
+      }else if(state.q){
+        s+='<text class="sm-q" x="'+(W/2)+'" y="26" text-anchor="middle" '+LBL+'>this question maps nowhere in the space</text>';
+      }
+      s+='</svg>';
+      host.innerHTML=s;
+
+      if(!side)return;
+      if(!state.q){side.innerHTML='';return;}
+      if(!liveQ){
+        side.innerHTML='<div class="sm-side"><h5>the question’s concepts</h5><div class="sm-chips">'+
+          '<span class="sm-chip none">none — nothing in this question maps to an axis this index knows, so it has no place in the space at all</span></div></div>';
+        return;
+      }
+      const best=scored.filter(o=>o.s>0)[0];
+      const shared=best?new Set(best.con.filter(c=>qc.has(c))):new Set();
+      const chip=(t,on)=>'<span class="sm-chip'+(on?' on':'')+'">'+escHtml(t)+'</span>';
+      /* An axis no chunk carries is the whole story of the warranty question, so it gets
+         its own state rather than looking like any other unmatched concept. */
+      const absent=Array.from(qc).filter(c=>!DF[c]);
+      side.innerHTML='<div class="sm-side">'+
+        '<h5>the question’s concepts</h5><div class="sm-chips">'+
+          Array.from(qc).map(c=>DF[c]?chip(c,shared.has(c)):'<span class="sm-chip gone">'+escHtml(c)+'</span>').join('')+'</div>'+
+        (absent.length?('<p class="sm-gone"><b>'+absent.map(escHtml).join(', ')+'</b> — no chunk in this index carries '+
+          (absent.length>1?'these axes':'that axis')+' at all. The document never says the word. Nothing below is a match; it is only the nearest thing there is.</p>'):'')+
+        (best?('<h5>'+escHtml(best.tag)+' <i>· nearest</i></h5><div class="sm-chips">'+
+          best.con.map(c=>chip(c,shared.has(c))).join('')+'</div>'+
+          '<p class="sm-math">'+shared.size+' shared&nbsp;÷&nbsp;√'+qc.size+'·√'+best.con.length+
+          ' = <b>'+best.s.toFixed(2)+'</b></p>')
+         :'<p class="sm-math">no chunk shares a single axis with this question.</p>')+
+      '</div>';
+    }
+    return {update(o){Object.assign(state,o||{});render();return this;}, el:host};
+  }
+  return {create,W,H,_PT:PT,_placeQuery:placeQuery,_cos:cosCon,_dist:dist,_K:K};
+})();
+
+/* ================= 00 PIPELINE ================= */
+(function(){
+  const A=[["Documents","pdf · html · md"],["Chunk","split text"],["Embed","→ vectors"],["Vector store","index"]];
+  const B=[["Question","user query"],["Embed","same model"],["Search","nearest chunks"],["Top-k","context"],["+ Prompt","assemble"],["LLM","generate"],["Answer","+ citations"]];
+  const caps=["Load raw documents of every format.","Split them into retrievable chunks.","Turn each chunk into a vector that encodes meaning.","Store vectors for fast similarity search.",
+    "A question arrives.","Embed it with the very same model.","Find the chunks whose vectors sit closest.","Keep the best handful — that's the context.","Paste that context into the prompt.","The model reads the prompt and writes.","A grounded, source-cited answer."];
+  function build(lane,arr){lane.innerHTML='';arr.forEach((n,i)=>{
+    const d=document.createElement('div');d.className='node';d.innerHTML='<div class="nlab">'+n[0]+'</div><div class="nsub">'+n[1]+'</div>';lane.appendChild(d);
+    if(i<arr.length-1){const a=document.createElement('div');a.className='arrow';a.textContent='→';lane.appendChild(a);}
+  });}
+  const laneA=document.getElementById('laneA'),laneB=document.getElementById('laneB');
+  build(laneA,A);build(laneB,B);
+  const nodes=[...laneA.querySelectorAll('.node'),...laneB.querySelectorAll('.node')];
+  const cap=document.getElementById('pipeCap');
+  document.getElementById('pipePlay').addEventListener('click',()=>{
+    nodes.forEach(n=>n.classList.remove('lit'));
+    const reduce=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    if(reduce){nodes.forEach(n=>n.classList.add('lit'));cap.innerHTML='<span>done</span>Offline builds the index; online answers the question.';return;}
+    let i=0;(function step(){
+      if(i>0)nodes[i-1].classList.remove('lit');
+      if(i>=nodes.length){cap.innerHTML='<span>done</span>Offline builds the index once; online runs on every question.';return;}
+      nodes[i].classList.add('lit');
+      cap.innerHTML='<span>'+String(i+1).padStart(2,'0')+'</span>'+caps[i];
+      i++;setTimeout(step,720);
+    })();
+  });
+})();
+
+/* ================= 01 EMBEDDINGS ================= */
+(function(){
+  const CL={animal:'#0E9C8B',food:'#D98518',tech:'#2F6BFF',emotion:'#E5484D',money:'#7A5AF8'};
+  const CLN={animal:'Animals',food:'Food',tech:'Tech',emotion:'Emotions',money:'Money'};
+  const P=[
+    ['dog',14,20,'animal'],['cat',22,18,'animal'],['puppy',11,29,'animal'],['kitten',20,31,'animal'],['wolf',27,24,'animal'],['lion',31,14,'animal'],['rabbit',9,20,'animal'],
+    ['pizza',76,18,'food'],['pasta',85,16,'food'],['curry',89,24,'food'],['bread',72,27,'food'],['mango',80,31,'food'],['coffee',91,13,'food'],['rice',70,17,'food'],
+    ['server',78,74,'tech'],['database',87,71,'tech'],['API',91,80,'tech'],['cloud',73,83,'tech'],['network',85,87,'tech'],['laptop',69,76,'tech'],
+    ['happy',14,76,'emotion'],['joyful',10,83,'emotion'],['sad',22,85,'emotion'],['angry',27,78,'emotion'],['calm',15,89,'emotion'],['excited',25,71,'emotion'],
+    ['price',46,48,'money'],['cost',55,46,'money'],['budget',50,57,'money'],['invoice',59,52,'money'],['payment',43,54,'money'],['refund',53,61,'money']
+  ];
+  const W=720,H=460,PAD=34;
+  const sx=v=>PAD+(v/100)*(W-2*PAD), sy=v=>PAD+(v/100)*(H-2*PAD);
+  const DMAX=Math.hypot(100,100);
+  const stage=document.getElementById('embStage');
+  let svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg"><g id="embLines"></g>';
+  P.forEach((p,i)=>{
+    svg+='<g class="emb-pt" data-i="'+i+'"><circle cx="'+sx(p[1]).toFixed(1)+'" cy="'+sy(p[2]).toFixed(1)+'" r="5.5" fill="'+CL[p[3]]+'" fill-opacity="0.85" stroke="#fff" stroke-width="1.5"/><text x="'+sx(p[1]).toFixed(1)+'" y="'+(sy(p[2])-9).toFixed(1)+'" text-anchor="middle">'+p[0]+'</text></g>';
+  });
+  svg+='</svg>';
+  stage.innerHTML=svg;
+  // legend
+  document.getElementById('embLegend').innerHTML=Object.keys(CL).map(k=>'<span><i style="background:'+CL[k]+'"></i>'+CLN[k]+'</span>').join('');
+  const linesG=stage.querySelector('#embLines');
+  const nnBox=document.getElementById('embNN'), selH=document.getElementById('embSel'), hint=document.getElementById('embHint');
+
+  function neighbours(x,y,excludeIdx){
+    return P.map((p,i)=>({i,label:p[0],cl:p[3],d:Math.hypot(p[1]-x,p[2]-y)}))
+            .filter(o=>o.i!==excludeIdx)
+            .sort((a,b)=>a.d-b.d).slice(0,4);
+  }
+  function draw(x,y,excludeIdx,title){
+    const nn=neighbours(x,y,excludeIdx);
+    // lines
+    let l='';const ox=sx(x),oy=sy(y);
+    nn.forEach(o=>{l+='<line x1="'+ox.toFixed(1)+'" y1="'+oy.toFixed(1)+'" x2="'+sx(P[o.i][1]).toFixed(1)+'" y2="'+sy(P[o.i][2]).toFixed(1)+'" stroke="#2F6BFF" stroke-width="1.5" stroke-opacity="0.55" stroke-dasharray="3 3"/>';});
+    if(excludeIdx===-1)l+='<circle cx="'+ox.toFixed(1)+'" cy="'+oy.toFixed(1)+'" r="7" fill="#2F6BFF" stroke="#fff" stroke-width="2"/>';
+    linesG.innerHTML=l;
+    // reset point sizes
+    stage.querySelectorAll('.emb-pt circle').forEach(c=>{c.setAttribute('r','5.5');c.setAttribute('stroke-width','1.5');});
+    nn.forEach(o=>{const c=stage.querySelector('.emb-pt[data-i="'+o.i+'"] circle');if(c){c.setAttribute('r','7.5');c.setAttribute('stroke-width','2.5');}});
+    if(excludeIdx>=0){const c=stage.querySelector('.emb-pt[data-i="'+excludeIdx+'"] circle');if(c){c.setAttribute('r','8');c.setAttribute('stroke-width','2.5');}}
+    selH.textContent=title;
+    hint.textContent='4 nearest neighbours by distance — closer means more similar:';
+    nnBox.innerHTML=nn.map(o=>{const sim=(1-o.d/DMAX);return '<div class="nrow"><span><span class="sw" style="background:'+CL[o.cl]+'"></span><b>'+o.label+'</b></span><span style="font-family:var(--mono);font-size:12px;color:#1A4ED8;font-weight:600">'+sim.toFixed(2)+'</span></div>';}).join('');
+  }
+  stage.addEventListener('click',e=>{
+    const g=e.target.closest('.emb-pt');if(!g)return;
+    const i=+g.dataset.i;draw(P[i][1],P[i][2],i,'“'+P[i][0]+'” · nearest');
+  });
+  document.querySelectorAll('.panel[data-p="emb"] .chip').forEach(ch=>{
+    ch.addEventListener('click',()=>{const [x,y]=ch.dataset.q.split(',').map(Number);draw(x,y,-1,ch.textContent+' · nearest');});
+  });
+  // initial
+  draw(50,50,-1,'"how much does it cost?" · nearest');
+})();
+
+/* ================= 02 THE DOCUMENT ================= */
+(function(){
+  /* --- step 1: the page as printed --- */
+  /* Deliberately the same printed-page grammar as the pipeline film: cobalt masthead, a
+     numbered section heading, a figure, a folio. The room has already met this page, and
+     recognising it is what makes "one document, worked end to end" land. */
+  function buildPage(){
+    let h='<div class="pg-mast"><span>'+DOCUMENT.title+'</span><span class="r">'+DOCUMENT.slug+'</span></div>';
+    h+='<div class="pg-fig"><svg viewBox="0 0 152 54" aria-hidden="true">'+
+       '<rect x="30" y="4" width="62" height="46" rx="4" fill="#FFFFFF" stroke="#2F6BFF" stroke-width="1.5"/>'+
+       '<rect x="35" y="9" width="52" height="36" rx="2" fill="#DBF3EF" stroke="#8FCFC6" stroke-width=".7"/>'+
+       '<rect x="39" y="14" width="30" height="2.2" rx="1.1" fill="#0E9C8B"/>'+
+       '<rect x="39" y="20" width="43" height="2.2" rx="1.1" fill="#8FCFC6"/>'+
+       '<rect x="39" y="26" width="37" height="2.2" rx="1.1" fill="#8FCFC6"/>'+
+       '<rect x="39" y="32" width="25" height="2.2" rx="1.1" fill="#B9E1DB"/>'+
+       '<rect x="97" y="9" width="3.6" height="36" rx="1.8" fill="#2F6BFF"/>'+
+       '<path d="M112 13 L120 17 M112 27 L121 27 M112 41 L120 37" stroke="#2F6BFF" stroke-width="1.4" stroke-linecap="round" fill="none"/>'+
+       '</svg></div><div class="pg-figcap">fig. 1 — the Aeronote</div>';
+    DOCUMENT.parts.forEach(p=>{
+      h+='<div class="pg-part"><i>Part '+p.n+'</i>'+p.name+'</div>';
+      p.secs.forEach(s=>{
+        h+='<div class="pg-sec"><div class="pg-h3"><i>'+s.n+'</i>'+s.h+'</div>'+
+           '<p class="pg-body" data-sec="'+s.id+'">'+s.text+'</p></div>';
+      });
+    });
+    h+='<div class="pg-foot"><span>'+DOCUMENT.foot+'</span><span class="fn">'+DOCUMENT.page+'</span></div>';
+    return h;
+  }
+  document.getElementById('docPage').innerHTML=buildPage();
+
+  /* --- step 2: cut it up --- */
+  const TEXT=CORPUS.map(c=>c.text).join(' ');
+  const COLORS=['#E4ECFF','#DBF3EF','#FBEEDA','#ECE7FF','#FBE3E4','#E9EDF1'];
+  const BORD=['#2F6BFF','#0E9C8B','#D98518','#7A5AF8','#E5484D','#8A98A6'];
+  let strat='section';
+  const out=document.getElementById('chkOut');
+  const sizeEl=document.getElementById('chkSize'),ovEl=document.getElementById('chkOv');
+
+  function splitFixed(t,size,ov){
+    const step=Math.max(10,Math.round(size*(1-ov/100)));const ch=[];
+    for(let i=0;i<t.length;i+=step){ch.push(t.slice(i,i+size));if(i+size>=t.length)break;}
+    return ch;
+  }
+  function sentences(t){return t.match(/[^.!?]+[.!?]+(\s|$)/g)||[t];}
+  function splitRecursive(t,size){
+    const sents=sentences(t);const ch=[];let cur='';
+    sents.forEach(s=>{
+      if((cur+s).length>size && cur){ch.push(cur.trim());cur=s;}
+      else cur+=s;
+    });
+    if(cur.trim())ch.push(cur.trim());
+    return ch;
+  }
+  function splitSentence(t){return sentences(t).map(s=>s.trim()).filter(Boolean);}
+
+  function render(){
+    const size=+sizeEl.value, ov=+ovEl.value;
+    document.getElementById('chkSizeV').textContent=size;
+    document.getElementById('chkOvV').textContent=ov+'%';
+    document.getElementById('chkSizeCtrl').style.opacity=(strat==='section'||strat==='sentence')?.35:1;
+    document.getElementById('chkOvCtrl').style.opacity=(strat==='fixed')?1:.35;
+    const note=document.getElementById('chkNote');
+    let chunks;
+
+    if(strat==='section'){
+      /* The split this lab actually uses. Note what the chunk does NOT keep: its heading.
+         "§ returns" is a tag we hang on it afterwards; the embedded text is the body alone.
+         That loss is not a detail — it is the exact wound tab 07 goes back and heals. */
+      out.innerHTML='<div class="ck-list">'+CORPUS.map((c,i)=>
+        '<div class="ck"><div class="ckh"><span class="ckn">chunk '+(i+1)+'</span>'+
+        '<span class="cktag">'+c.tag+'</span>'+
+        '<span class="cklost">'+escHtml(c.sec.n+' '+c.sec.h)+' — heading dropped</span></div>'+
+        '<div class="ckb">'+escHtml(c.text)+'</div></div>').join('')+'</div>';
+      chunks=CORPUS.map(c=>c.text);
+      note.innerHTML='<b>This is the split everything downstream uses.</b> One section, one chunk — nine of them. The <span style="font-family:var(--mono)">§</span> tag is a label we keep <i>beside</i> the chunk; the heading itself is gone from the text that gets embedded. Read chunk 8 on its own: it says "You can return the Aeronote within 45 days" and never once says which policy it belongs to. Hold that thought until tab 07.';
+    } else {
+      if(strat==='fixed')chunks=splitFixed(TEXT,size,ov);
+      else if(strat==='recursive')chunks=splitRecursive(TEXT,size);
+      else chunks=splitSentence(TEXT);
+      if(strat==='fixed' && ov>0){
+        out.innerHTML='<div style="display:flex;flex-direction:column;gap:8px;line-height:1.55">'+chunks.map((c,i)=>
+          '<div style="border-left:3px solid '+BORD[i%6]+';background:'+COLORS[i%6]+';border-radius:0 9px 9px 0;padding:9px 12px;font-size:13.5px">'+
+          '<span style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);display:block;margin-bottom:3px">chunk '+(i+1)+'</span>'+escHtml(c)+'</div>').join('')+'</div>';
+      } else {
+        out.innerHTML=chunks.map((c,i)=>'<span class="chk-piece" style="background:'+COLORS[i%6]+';box-shadow:inset 2px 0 '+BORD[i%6]+'">'+escHtml(c)+'</span>').join(' ');
+      }
+      if(strat==='sentence'){note.innerHTML='<b>Sentence chunking:</b> every sentence is its own chunk. Here that is almost the section split — the document writes one sentence per section — but on real prose it fragments a fact across two chunks. In production it pairs with a <i>window</i>: retrieve the sentence, feed its neighbours too.';}
+      else if(size<=110){note.innerHTML='<b>⚠ Fragments.</b> Chunks this small slice sentences mid-thought. Look at what happens to the price: <span style="font-family:var(--mono)">"$399 for the base model"</span> can end up in a different chunk from the words that say it is a price. Retrieval then matches on scraps.';}
+      else if(size>=420){note.innerHTML='<b>⚠ Dilution.</b> One chunk now carries the screen, the charge <i>and</i> the weight. That is one vector for three unrelated facts — retrieval gets fuzzier, and you burn context-window budget hauling in text the question never needed.';}
+      else{note.innerHTML='<b>A reasonable middle</b> — but notice it cuts across sections anyway. The <i>recursive</i> strategy at least respects sentence boundaries. This document has an obvious natural unit, and when a corpus has one, use it: <b>by section</b> beats any character count.';}
+    }
+    const avg=Math.round(chunks.reduce((a,c)=>a+c.length,0)/chunks.length);
+    document.getElementById('chkCount').textContent=chunks.length;
+    document.getElementById('chkAvg').textContent=avg;
+    document.getElementById('chkOvlap').textContent=(strat==='fixed')?(ov+'%'):(strat==='section'?'section-aligned':'boundary-aware');
+  }
+
+  document.getElementById('chkStrat').addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b)return;
+    strat=b.dataset.s;
+    document.querySelectorAll('#chkStrat button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+    ovEl.disabled=(strat!=='fixed');
+    sizeEl.disabled=(strat==='section'||strat==='sentence');
+    render();
+  });
+  sizeEl.addEventListener('input',render);
+  ovEl.addEventListener('input',render);
+  render();
+
+  /* --- step 3: put it in the index --- */
+  const idxMap=SpaceMap.create(document.getElementById('idxMap'),null);
+  const idxList=document.getElementById('idxList');
+  let shown=0;
+  function paintIdx(){
+    idxMap.update({q:'',reveal:shown});
+    idxList.innerHTML=CORPUS.slice(0,shown).map(c=>
+      '<div class="idxrow"><span class="ixt">'+c.tag+'</span><div class="sm-chips">'+
+      c.con.map(x=>'<span class="sm-chip">'+escHtml(x)+'</span>').join('')+'</div></div>').join('')
+      ||'<p class="idx-empty">Nothing indexed yet. Each chunk arrives as a short list of concept axes — that list <i>is</i> its vector.</p>';
+    document.getElementById('idxNote').textContent=shown+' of '+CORPUS.length+' chunks indexed';
+    document.getElementById('idxGo').disabled=shown>=CORPUS.length;
+    /* The label says which of the two things the button will do. It used to be a silent
+       toggle, so a presenter clicking "Index all nine" twice emptied the map mid-sentence. */
+    document.getElementById('idxAll').textContent=shown>=CORPUS.length?'Start over':'Index all nine';
+  }
+  document.getElementById('idxGo').addEventListener('click',()=>{if(shown<CORPUS.length){shown++;paintIdx();}});
+  document.getElementById('idxAll').addEventListener('click',()=>{shown=shown>=CORPUS.length?0:CORPUS.length;paintIdx();});
+  paintIdx();
+
+  /* --- the three steps --- */
+  document.getElementById('docSteps').addEventListener('click',e=>{
+    const b=e.target.closest('.dstep');if(!b)return;
+    document.querySelectorAll('#docSteps .dstep').forEach(x=>x.classList.toggle('on',x===b));
+    document.querySelectorAll('.panel[data-p="chk"] .dpanel').forEach(p=>p.classList.toggle('on',p.dataset.k===b.dataset.k));
+  });
+})();
+
+/* ================= 03 RETRIEVAL ================= */
+(function(){
+  const map=SpaceMap.create(document.getElementById('retMap'),document.getElementById('retSide'));
+  function renderRows(el,scored,cls,topk){
+    el.innerHTML=scored.map((r,i)=>{
+      const dead=r.s<0.02;const hit=i<topk && !dead;
+      const pct=Math.round(r.s*100);
+      return '<div class="row '+(hit?'hit':'')+' '+(dead?'dead':'')+'"><div><div class="rtag">'+r.tag+'</div><div class="rtext">'+r.text+'</div></div>'+
+        '<div class="meter"><div class="track"><div class="fill '+cls+'" style="width:'+pct+'%"></div></div><div class="val">'+r.s.toFixed(2)+'</div></div></div>';
+    }).join('');
+  }
+  function runRetrieval(q){
+    const lex=scoreAll(q,c=>lexScore(q,c.text));
+    const sem=scoreAll(q,c=>semScore(q,c));
+    renderRows(document.getElementById('retLex'),lex.slice(0,5),'coral',2);
+    renderRows(document.getElementById('retSem'),sem.slice(0,5),'teal',2);
+    map.update({q:q,top:3,marks:{}});
+    const note=document.getElementById('retNote');
+    const lexTop=lex[0].s, semTop=sem[0].s;
+    /* Branch on the same signal the map's coral chip uses — an axis no chunk carries —
+       rather than on a score threshold. Keyed on the threshold, this note used to tell the
+       room that semantic search had "pulled the right chunk to the top" for a query where
+       both retrievers scored 0.00 and the panel beside it correctly said nothing matched. */
+    const gone=absentAxes(q);
+    if(semTop<0.02 && lexTop<0.02){
+      note.innerHTML='<b>Both retrievers came back empty.</b> That is a correct answer, not a bug — this question isn\'t in the document. Worth saying out loud: a production system should <i>report</i> that rather than hand the model nothing and let it improvise. <b>Retrieval returning nothing is a valid, useful signal</b>, and throwing it away is one of the most common ways a RAG system starts inventing things.';
+    }else if(gone.length){
+      /* The case the room needs to see: retrieval hands something over even when part of
+         the question describes nothing in the index at all. */
+      note.innerHTML='<b>Look at the map, not the number.</b> <span style="font-family:var(--mono)">'+gone.map(escHtml).join('</span>, <span style="font-family:var(--mono)">')+'</span> — '+(gone.length>1?'those axes are':'that axis is')+' carried by <b>no chunk in this index</b>, which is why the question is sitting out on its own with everything far from the centre. Retrieval still hands over <span style="font-family:var(--mono)">'+sem[0].tag+' '+semTop.toFixed(2)+'</span>, not because it is a match but because it is the <i>least-far</i> thing there is. <b>Nothing in that score says "I am not sure."</b> Tab 04 is where something finally does.';
+    }else if(lexTop<0.02){
+      note.innerHTML='<b>Watch what just happened.</b> Keyword search scored <span style="font-family:var(--mono)">0.00</span> across the board — none of the question\'s words appear literally in the document (it says "refund" not "money back", "charge" not "battery"). The answer <i>is</i> in the index, but lexical matching is blind to it. Semantic search reads through to the meaning and pulls the right chunk straight to the top. This vocabulary-mismatch gap is exactly why embeddings exist.';
+    } else {
+      note.innerHTML='<b>The lesson:</b> when the question shares words with the document, keyword search does fine. It only breaks on <i>vocabulary mismatch</i>. That\'s why production systems run <b>both and fuse the rankings</b> (hybrid search) — keyword is unbeatable for exact terms like error codes, SKUs and names.';
+    }
+  }
+  document.getElementById('retGo').addEventListener('click',()=>runRetrieval(document.getElementById('retQ').value));
+  document.getElementById('retQ').addEventListener('keydown',e=>{if(e.key==='Enter')runRetrieval(e.target.value);});
+  document.querySelectorAll('.panel[data-p="ret"] .chip').forEach(ch=>ch.addEventListener('click',()=>{document.getElementById('retQ').value=ch.dataset.q;runRetrieval(ch.dataset.q);}));
+  runRetrieval('battery life');
+})();
+
+
+/* ================= 04 RERANK =================
+   Everything here is computed. The old version shipped two hardcoded arrays — 0.71 → 0.94,
+   typed into the file — so there was literally no mechanism on screen to understand, which
+   is the complaint this rewrite answers.
+
+   The cross-encoder is a TOY and the page says so. But it is a toy that actually reads the
+   chunk's words, and its two halves are the two things a real cross-encoder gets from
+   seeing both texts at once:
+
+     subject  — does this chunk carry the question's sharpest concept? "Sharpest" = rarest
+                across the nine chunks, which is just IDF: the axis that narrows it down
+                most. When that axis appears in NO chunk, every candidate collapses, and
+                that collapse is the honest answer to a question the document can't answer.
+     evidence — does the chunk's text contain a value of the kind the question asks for?
+                A price, a duration, a mass, an instruction. Plain regexes over chunk.text.
+
+   The bi-encoder in stage 1 cannot use either: by the time it compares, both texts are
+   already vectors. That is the entire lesson of the tab. */
+(function(){
+  const DF=DOCFREQ;
+  const KIND=[
+    {k:'a price',      q:/\b(cost|costs|price|priced|expensive|cheap|afford|pay|dollars?)\b/, e:/\$\s?\d/},
+    {k:'a size or weight', q:/\b(heavy|light|weigh|weighs|weight|thick|thin|big|small|size|dimensions)\b/,
+                       e:/\b\d+(\.\d+)?\s*[-\u2011]?\s*(gram|g\b|inch|in\b|mm|cm)/i},
+    {k:'a length of time', q:/\b(how long|long|last|lasts|duration|often|when)\b/,
+                       e:/\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten|a full)\s+(second|minute|hour|day|week|month|year)s?\b/i},
+    {k:'something to do', q:/\b(how do|how can|how would|can i|what do|get|send|export|save|reset|fix|update)\b/,
+                       e:/\b(can be \w+ed|hold the|press|return the|sync|exported)\b/i}
+  ];
+  function kindOf(q){const s=q.toLowerCase();for(let i=0;i<KIND.length;i++)if(KIND[i].q.test(s))return KIND[i];return null;}
+
+  function judge(q,chunk,topic){
+    const qc=Array.from(qConcepts(q));
+    // the question's sharpest axis: the one fewest chunks carry (IDF, by another name)
+    let sharp=null,best=1e9;
+    qc.forEach(c=>{const df=DF[c]||0;if(df<best){best=df;sharp=c;}});
+    const subject=(sharp&&chunk.con.indexOf(sharp)>=0)?1:0.15;
+    const kind=kindOf(q);
+    const evid=kind?(kind.e.test(chunk.text)?1:0):0.5;
+    return {s:subject*(0.55*evid+0.45*topic), subject:subject, evid:evid, topic:topic,
+            sharp:sharp, sharpDf:best, kind:kind?kind.k:null};
+  }
+
+  const map=SpaceMap.create(document.getElementById('rrkMap'),document.getElementById('rrkSide'));
+  const THRESH=0.35;
+  let query='', stage1=[], stage2=[], ran=false;
+
+  function paintList(el,arr,showMv){
+    el.innerHTML=arr.map((r,i)=>{
+      const mv=showMv&&r.mv?('<span class="mv '+r.mv+'">'+(r.mv==='up'?'▲ up':'▼ down')+'</span>'):'';
+      return '<div class="rrk-item '+(r.win?'win':'')+' '+(r.mv==='down'?'down':'')+' '+(r.mv==='up'?'up':'')+'">'+
+        '<div class="rk">'+(i+1)+'</div><div class="rt">'+escHtml(r.text)+
+        '<div class="rtag" style="margin-top:4px">'+r.tag+'</div></div>'+
+        '<div class="rs">'+r.s.toFixed(2)+mv+'</div></div>';
+    }).join('');
+  }
+
+  function bar(lab,v,col,hint){
+    return '<div class="xb"><span class="xbl">'+lab+'</span>'+
+      '<div class="track"><div class="fill" style="width:'+Math.round(v*100)+'%;background:'+col+'"></div></div>'+
+      '<span class="xbv">'+v.toFixed(2)+'</span><span class="xbh">'+hint+'</span></div>';
+  }
+  function paintXenc(){
+    const host=document.getElementById('rrkXenc');
+    if(!ran){host.innerHTML='';return;}
+    const j0=stage2[0].j;
+    host.innerHTML=
+      '<div class="xhead"><b>What the cross-encoder read.</b> Its sharpest concept in this question is '+
+        '<span class="xsharp">'+escHtml(j0.sharp)+'</span> — carried by <b>'+j0.sharpDf+' of the 9 chunks</b>'+
+        (j0.sharpDf===0?', which is why every candidate below collapses':'')+
+        (j0.kind?'. And the question asks for <b>'+j0.kind+'</b>, so it looks for one in the text.':'.')+
+        ' <i>A toy: three rules you can read, standing in for a transformer. A real cross-encoder learns this rather than being told it — what matters is that it sees both texts at once, which stage 1 never does.</i></div>'+
+      stage2.map(r=>
+        '<div class="xrow'+(r.s>=THRESH?' pass':'')+'"><div class="xt"><span class="rtag">'+r.tag+'</span>'+escHtml(r.text)+'</div>'+
+        '<div class="xbars">'+
+          bar('subject',r.j.subject,'var(--cobalt)', r.j.subject===1?'carries “'+escHtml(j0.sharp)+'”':'does not carry “'+escHtml(j0.sharp)+'”')+
+          bar('evidence',r.j.evid,'var(--amber)', j0.kind?(r.j.evid?'states '+escHtml(j0.kind):'states no '+escHtml(j0.kind)):'no value asked for')+
+          bar('topic',r.j.topic,'var(--teal)','stage-1 cosine, carried in')+
+        '</div><div class="xscore">'+r.s.toFixed(2)+'</div></div>').join('');
+  }
+
+  function run(q){
+    query=q; ran=false;
+    document.getElementById('rrkQ').textContent='"'+q+'"';
+    const scored=scoreAll(q,c=>semScore(q,c)).filter(o=>o.s>0);
+    stage1=scored.slice(0,4);
+    map.update({q:q,top:3,marks:{}});
+    const rr=stage1.map(o=>{const j=judge(q,o,o.s);return {...o,j:j,s:j.s};}).sort(byScore);
+    const rank1={};stage1.forEach((o,i)=>{rank1[o.id]=i;});
+    stage2=rr.map((o,i)=>({...o,mv:rank1[o.id]>i?'up':(rank1[o.id]<i?'down':''),win:i===0&&o.s>=THRESH}));
+
+    paintList(document.getElementById('rrkBefore'),stage1,false);
+    paintList(document.getElementById('rrkAfter'),stage1.map(x=>({...x,mv:'',win:false})),false);
+    document.getElementById('rrkGo').disabled=false;
+    document.getElementById('rrkState').textContent='';
+    paintXenc();
+
+    const why=document.getElementById('rrkWhy');
+    const gap=stage1.length>1?stage1[0].s-stage1[1].s:1;
+    if(gap<0.06){
+      why.innerHTML='<b>Look at how tightly they are bunched.</b> The top four sit within <span style="font-family:var(--mono)">'+gap.toFixed(2)+'</span> of each other, because they all share the same one or two concept axes. The question landed in a <i>neighbourhood</i>, not on an answer — and the chunk it picked is not the one that answers it. A single vector comparison has nothing left to break that tie with, and no way to tell you it is guessing.';
+    }else if(stage1[0].s<0.55){
+      why.innerHTML='<b>Nothing on this map is near the middle.</b> The best chunk sits at <span style="font-family:var(--mono)">'+stage1[0].s.toFixed(2)+'</span> and the rest are further out still. Stage 1 has no way to express that: it returns a ranking, and a ranking always has a first place. Ask the room what the <i>right</i> answer is here — then run the reranker.';
+    }else{
+      why.innerHTML='<b>Stage 1 is confident here.</b> Run the reranker anyway and watch what it does <i>not</i> change — a good reranker leaves correct rankings alone.';
+    }
+  }
+
+  document.getElementById('rrkGo').addEventListener('click',()=>{
+    ran=true;
+    paintList(document.getElementById('rrkAfter'),stage2,true);
+    const clear=stage2.filter(o=>o.s>=THRESH);
+    const marks={};
+    if(clear.length){marks[stage2[0].id]='win';if(stage1[0].id!==stage2[0].id)marks[stage1[0].id]='wrong';}
+    else stage1.forEach(o=>{marks[o.id]='wrong';});
+    map.update({marks:marks});
+    document.getElementById('rrkState').textContent=clear.length
+      ? 'reranked · '+stage2[0].tag+' now leads'
+      : 'reranked · nothing cleared the '+THRESH.toFixed(2)+' threshold';
+    if(!clear.length){
+      document.getElementById('rrkAfter').insertAdjacentHTML('beforeend',
+        '<div class="rrk-none"><b>No answer in this document.</b> Every candidate scored below the threshold, so the honest response is to return nothing rather than hand the model the least-bad paragraph and let it improvise. <b>Knowing when to refuse is half of what a reranker buys you</b> — and it is the half a similarity score alone can never give you.</div>');
+    }
+    paintXenc();
+  });
+
+  document.querySelectorAll('.panel[data-p="rrk"] .chip').forEach(ch=>ch.addEventListener('click',()=>{
+    document.querySelectorAll('.panel[data-p="rrk"] .chip').forEach(x=>x.classList.toggle('on',x===ch));
+    run(ch.dataset.q);
+  }));
+  run('how do I get my notes onto my computer?');
+})();
+
+/* ================= 05 GENERATION ================= */
+(function(){
+  const badScripted='I don\'t have specific details on the Aeronote\'s return policy. Most consumer electronics allow returns within <span class="wrong">about 30 days</span> — but you\'d need to check the retailer to be sure.';
+  const goodScripted='You can return the Aeronote within <b>45 days</b> of delivery for a full refund. <span class="cite">source: returns policy</span>';
+  const badEl=document.getElementById('genBad'),goodEl=document.getElementById('genGood');
+  badEl.innerHTML=badScripted;goodEl.innerHTML=goodScripted;
+  /* The retrieved chunk is read from the index, not re-typed into the markup — it used to
+     be a hand-copied duplicate, which is exactly how the corpus drifted apart in the first
+     place. This is the same string tab 03 retrieves and tab 07 splits open. */
+  document.getElementById('genCtx').insertAdjacentText('beforeend',BY_ID.refund.text);
+
+  document.getElementById('genCtxToggle').addEventListener('click',e=>{
+    const ctx=document.getElementById('genCtx');ctx.classList.toggle('show');
+    e.target.textContent=ctx.classList.contains('show')?'Hide retrieved context':'Show retrieved context';
+  });
+
+  function typeInto(el,html,cb){
+    const reduce=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    if(reduce){el.innerHTML=html;if(cb)cb();return;}
+    el.textContent='';const plain=html.replace(/<[^>]+>/g,'');let i=0;
+    el.innerHTML='<span class="blink"></span>';
+    const iv=setInterval(()=>{
+      i++;el.innerHTML=plain.slice(0,i)+'<span class="blink"></span>';
+      if(i>=plain.length){clearInterval(iv);el.innerHTML=html;if(cb)cb();}
+    },14);
+  }
+
+  /* Deliberately offline. An earlier version POSTed to api.anthropic.com straight from
+     the page — that can never work: the browser blocks it on CORS, and shipping a real
+     API key in a file you hand to a room full of students would leak the key to all of
+     them. These two answers are transcripts of that exact pair of calls, replayed. */
+  const liveBtn=document.getElementById('genLive'),liveNote=document.getElementById('genLiveNote');
+  liveBtn.addEventListener('click',()=>{
+    liveBtn.disabled=true;liveNote.textContent='generating…';
+    badEl.innerHTML='<span class="blink"></span>';goodEl.innerHTML='<span class="blink"></span>';
+    typeInto(badEl,badScripted,()=>{
+      typeInto(goodEl,goodScripted,()=>{
+        liveNote.textContent='recorded model output · runs offline';
+        liveBtn.disabled=false;
+      });
+    });
+  });
+})();
+
+/* ================= 06 HYBRID SEARCH + RRF ================= */
+(function(){
+  const K=60; // the conventional constant; damps the influence of any single list's top hit
+  const snip=t=>t.length>62?t.slice(0,60).replace(/\s\S*$/,'')+'…':t;
+
+  function rankedList(scorer){
+    return CORPUS.map(c=>({...c,s:scorer(c)})).sort((a,b)=>b.s-a.s).filter(o=>o.s>0);
+  }
+  function paintList(el,list){
+    if(!list.length){
+      el.innerHTML='<div class="hyb-empty">Nothing matched.<br>Every document scored 0.00.</div>';
+      return;
+    }
+    el.innerHTML=list.slice(0,4).map((r,i)=>
+      '<div class="hyb-item"><div class="hk">'+(i+1)+'</div>'+
+      '<div><div class="ht">'+r.tag+'</div><div class="hsnip">'+snip(r.text)+'</div></div>'+
+      '<div class="hs">'+r.s.toFixed(2)+'</div></div>').join('');
+  }
+  function run(q){
+    const lex=rankedList(c=>lexScore(q,c.text));
+    const sem=rankedList(c=>semScore(q,c));
+    // RRF: sum 1/(k+rank) across every list the doc appears in. Ranks, never raw scores.
+    const fuse={};
+    const add=(list,which)=>list.forEach((o,i)=>{
+      fuse[o.id]=fuse[o.id]||{id:o.id,tag:o.tag,text:o.text,s:0,parts:[]};
+      fuse[o.id].s+=1/(K+i+1);
+      fuse[o.id].parts.push(which+' #'+(i+1));
+    });
+    add(lex,'sparse');add(sem,'dense');
+    const fused=Object.values(fuse).sort((a,b)=>b.s-a.s);
+
+    paintList(document.getElementById('hybLex'),lex);
+    paintList(document.getElementById('hybSem'),sem);
+    const fEl=document.getElementById('hybFus');
+    if(!fused.length){
+      fEl.innerHTML='<div class="hyb-empty">Neither retriever returned anything.<br>This question isn\'t in the corpus.</div>';
+    }else{
+      fEl.innerHTML=fused.slice(0,4).map((r,i)=>
+        '<div class="hyb-item '+(i===0?'win':'')+'"><div class="hk">'+(i+1)+'</div>'+
+        '<div><div class="ht">'+r.tag+'</div><div class="hform">'+r.parts.join('  +  ')+
+        (r.parts.length===1?'  ·  one retriever':'  ·  both retrievers')+'</div></div>'+
+        '<div class="hs">'+r.s.toFixed(4)+'</div></div>').join('');
+    }
+
+    const note=document.getElementById('hybNote');
+    const lexDead=!lex.length, semDead=!sem.length;
+    if(semDead && !lexDead){
+      note.innerHTML='<b>The mirror image of tab 03.</b> Now it\'s the <i>embeddings</i> scoring 0.00 everywhere. "E-42" carries no meaning to an embedding model — it shatters into meaningless subword pieces and lands in a dead region of the space. Keyword search doesn\'t care: it matches the literal string and nails the chunk instantly. <b>This is why you don\'t delete BM25.</b> Error codes, SKUs, part numbers, people\'s names, API method names — exact identifiers are the one thing lexical search does better than any embedding, permanently.';
+    }else if(lexDead && !semDead){
+      note.innerHTML='<b>The tab 03 case, now fused.</b> Keyword scores 0.00 across the board — the docs say "charge", the user said "battery". Dense retrieval carries the round alone, and RRF simply passes its ranking through. Fusion <b>degrades gracefully</b>: when one retriever finds nothing, you get the other one\'s answer rather than a broken result.';
+    }else if(!lexDead && !semDead){
+      note.innerHTML='<b>Both retrievers agree — and agreement is information.</b> The <span style="font-family:var(--mono)">§ sync</span> chunk tops both lists, so it collects <i>two</i> RRF contributions and scores roughly double the runners-up, which each appeared in only one list. That\'s the quiet strength of RRF: it doesn\'t just merge lists, it rewards <b>consensus</b> between two retrievers that fail in uncorrelated ways.';
+    }else{
+      note.innerHTML='<b>Both retrievers came back empty.</b> That\'s the honest answer — this question isn\'t answerable from the corpus. Worth noticing: a production system should <i>say so</i> rather than hand the model nothing and let it improvise. Retrieval returning nothing is a valid, useful signal.';
+    }
+  }
+  document.getElementById('hybGo').addEventListener('click',()=>run(document.getElementById('hybQ').value));
+  document.getElementById('hybQ').addEventListener('keydown',e=>{if(e.key==='Enter')run(e.target.value);});
+  document.querySelectorAll('.panel[data-p="hyb"] .chip').forEach(ch=>ch.addEventListener('click',()=>{
+    document.getElementById('hybQ').value=ch.dataset.q;run(ch.dataset.q);
+  }));
+  run('battery life');
+})();
+
+/* ================= 07 CONTEXTUAL RETRIEVAL =================
+   Same document as every other tab. This used to import a foreign three-chunk "Warranty &
+   Support" page, which is how the lab ended up asserting both that the corpus has no
+   warranty (tab 03) and that it has one (here). It is now § 3.2 Returns — chunk 8 from
+   tab 02 — split three ways, so the tab visibly zooms INTO a chunk the room watched being
+   indexed. Chunk 1 is byte-identical to CORPUS § returns and to tab 05's context box. */
+(function(){
+  const SRC=BY_ID.refund;
+  const DOC=[
+    {raw:SRC.text,
+     ctx:"From the Aeronote returns policy, § 3.2 — the 45-day refund window: ",
+     conRaw:['refund','return','policy','duration'],
+     conCtx:['refund','return','policy','duration']},
+    {raw:"This does not apply to a unit with a cracked screen, water damage, or a missing stylus.",
+     ctx:"From the Aeronote returns policy, § 3.2 — what is excluded from the refund: ",
+     conRaw:['damage','display','exclusion'],
+     conCtx:['damage','display','exclusion','refund','return','policy']},
+    {raw:"Refunds reach the original payment method within five business days.",
+     ctx:"From the Aeronote returns policy, § 3.2 — how a refund is paid out: ",
+     conRaw:['refund','money','duration'],
+     conCtx:['refund','money','duration','return','policy']}
+  ];
+  const QUERY="Can I return a tablet with a cracked screen?";
+  const qc=qConcepts(QUERY);            // the same query encoder every other tab uses
+  const cos=(con)=>{
+    let h=0;qc.forEach(c=>{if(con.indexOf(c)>=0)h++;});
+    return h?h/(Math.sqrt(qc.size)*Math.sqrt(con.length)):0;
+  };
+
+  let on=false;
+  function paint(){
+    [['ctxrRaw',false],['ctxrCtx',true]].forEach(function(pair){
+      const id=pair[0],useCtx=pair[1],showCtx=useCtx&&on;
+      const el=document.getElementById(id);
+      if(useCtx&&!on){
+        el.innerHTML='<div class="hyb-empty" style="color:var(--ink-faint);border-color:var(--line);background:var(--surface)">Press <b>Add context &amp; re-embed</b> to generate<br>a situating line for each chunk.</div>';
+        return;
+      }
+      const scored=DOC.map((d,i)=>({i:i,d:d,s:cos(showCtx?d.conCtx:d.conRaw)}));
+      const best=scored.slice().sort((a,b)=>b.s-a.s||a.i-b.i)[0];
+      el.innerHTML=scored.map(function(o){
+        const isTop=o.i===best.i;
+        const cls=isTop?(o.i===1?'win':'wrong'):'';
+        return '<div class="ctxr-chunk '+cls+'">'+
+          '<span class="crank">chunk '+(o.i+1)+(isTop?' · retrieved':'')+'</span>'+
+          (showCtx?'<span class="cprefix">'+o.d.ctx+'</span>':'')+
+          '<span class="cbody">'+o.d.raw+'</span>'+
+          '<div class="cfoot"><div class="track"><div class="fill" style="width:'+Math.round(o.s*100)+'%"></div></div>'+
+          '<div class="val">'+o.s.toFixed(2)+'</div></div></div>';
+      }).join('');
+    });
+    const note=document.getElementById('ctxrNote');
+    if(!on){
+      note.innerHTML='<b>Read chunk 2 on its own.</b> "This does not apply to a unit with a cracked screen…" — <i>this what?</i> Chunk 2 is the only one that answers the question, and it comes <b>second</b>. It matches the <i>cracked screen</i> half and loses the <i>can I return</i> half, because it never says <b>return</b> or <b>refund</b> — those words were one sentence up, and the heading that would have carried them was dropped when the chunk was cut. You watched that happen in tab 02. So retrieval leads with <b>chunk 1</b> (0.67 against 0.52), which is about returns and says nothing about a cracked screen. Top-1 misses the answer completely; even top-2 hands the model the reassuring paragraph first. <b>The user gets a confidently wrong answer:</b> "45 days, no questions asked" — so yes, you\'re covered.';
+    }else{
+      note.innerHTML='<b>One generated line changes the ranking.</b> Chunk 2 now carries the words it lost when it was cut out — <span style="font-family:var(--mono)">0.52 → 0.91</span>, straight past chunk 1. Anthropic reports this cuts failed retrievals by <b>49%</b>, and by <b>67%</b> combined with reranking. The cost is real but one-off: an LLM call per chunk at <i>index</i> time, made cheap by prompt caching — query time is unchanged. Note what the blurb actually is: <b>the heading tab 02 threw away</b>, written back in prose. And note that chunk 3 rose too — contextualising lifts <i>everything</i> in the document, which is exactly why you still want a reranker after it. These techniques stack; they don\'t substitute.';
+    }
+    document.getElementById('ctxrNote2').textContent=on?'context lines pre-generated by an LLM at index time':'';
+    document.getElementById('ctxrGo').textContent=on?'Reset to raw chunks':'Add context & re-embed';
+  }
+  document.getElementById('ctxrGo').addEventListener('click',()=>{on=!on;paint();});
+  paint();
+})();
+
+/* ================= 08 EVALUATION ================= */
+(function(){
+  // The question needs TWO facts: tablet battery (§ power) and stylus battery (§ stylus).
+  // Metric values are from a pre-run RAGAS-style evaluation over this single question.
+  const ORDER=[
+    {tag:'§ power',   role:'need',  why:'tablet battery — needed'},
+    {tag:'§ stylus',  role:'need',  why:'stylus battery — needed'},
+    {tag:'§ pricing', role:'noise', why:'irrelevant'},
+    {tag:'§ display', role:'noise', why:'irrelevant'},
+    {tag:'§ size',    role:'noise', why:'irrelevant'}
+  ];
+  const DATA={
+    1:{recall:0.50,precision:1.00,faith:0.91,relevancy:0.90,
+       ans:'The Aeronote runs for about <b>three weeks</b> of typical daily note-taking on a single charge.',
+       verdict:['warn','<b>Half the question went unanswered — and both generation metrics are green.</b> Faithfulness 0.91: every word above really is supported. Answer relevancy 0.90: it is squarely on topic. The generator did nothing wrong. Retrieval simply never handed it the stylus chunk, and the model answered smoothly from what it had rather than saying "I don\'t know the rest."']},
+    2:{recall:1.00,precision:1.00,faith:0.96,relevancy:0.96,
+       ans:'The tablet lasts about <b>three weeks</b> of typical daily note-taking per charge, and the stylus lasts roughly <b>a full day</b> of writing per charge.',
+       verdict:['ok','<b>The sweet spot.</b> Both needed chunks retrieved, no noise, both halves of the question answered. Every metric agrees — which is what agreement is supposed to look like.']},
+    3:{recall:1.00,precision:0.67,faith:0.94,relevancy:0.94,
+       ans:'The tablet lasts about <b>three weeks</b> per charge and the stylus roughly <b>a full day</b> of writing.',
+       verdict:['mid','<b>Still correct, now wasteful.</b> Recall is perfect but a third of the context is irrelevant. You are paying tokens and latency for a pricing chunk nobody asked about. Precision sees this; faithfulness never will.']},
+    4:{recall:1.00,precision:0.50,faith:0.91,relevancy:0.89,
+       ans:'The tablet lasts around <b>three weeks</b> per charge; the stylus lasts about <b>a day</b>. The device costs $399 and has a 10.3-inch screen.',
+       verdict:['mid','<b>Drift.</b> Half the context is noise, and the model has started volunteering facts nobody asked for. Not wrong — just no longer answering the question that was asked, which is what answer relevancy is starting to register.']},
+    5:{recall:1.00,precision:0.40,faith:0.86,relevancy:0.82,
+       ans:'The Aeronote lasts roughly <b>three weeks</b> on a charge. It is a 375 g, 10.3-inch e-ink tablet at $399, and the stylus recharges wirelessly.',
+       verdict:['warn','<b>Buried.</b> The stylus duration has gone vague and the answer leads with specs. This is <i>lost in the middle</i> — models under-use material sitting in the middle of a long context. More retrieval made the answer worse.']}
+  };
+  const METRICS=[
+    {k:'recall',   n:'Context recall',    g:'retrieval', how:'Did retrieval fetch everything needed to answer? Needs labelled gold chunks — which is why teams skip it.'},
+    {k:'precision',n:'Context precision', g:'retrieval', how:'What fraction of the retrieved context was actually relevant?'},
+    {k:'faith',    n:'Faithfulness',      g:'generation',how:'Are the answer\'s claims supported by the context it was given? Catches hallucination. Needs no ground truth.'},
+    {k:'relevancy',n:'Answer relevancy',  g:'generation',how:'Does the answer address the question asked? Needs no ground truth — so it\'s the one everyone measures.'}
+  ];
+  const col=v=>v>=0.9?'var(--teal)':v>=0.65?'var(--amber)':'var(--coral)';
+  const slider=document.getElementById('evK');
+
+  function render(){
+    const k=+slider.value,d=DATA[k];
+    document.getElementById('evKV').textContent='k = '+k;
+    document.getElementById('evMetrics').innerHTML=METRICS.map(function(m){
+      const v=d[m.k];
+      return '<div class="ev-metric '+(m.g==='generation'?'gen':'')+'">'+
+        '<div class="mtop"><span class="mname">'+m.n+' <span class="pill '+(m.g==='retrieval'?'teal':'coral')+'">'+m.g+'</span></span>'+
+        '<span class="mval" style="color:'+col(v)+'">'+v.toFixed(2)+'</span></div>'+
+        '<div class="track"><div class="fill" style="width:'+Math.round(v*100)+'%;background:'+col(v)+'"></div></div>'+
+        '<div class="mhow">'+m.how+'</div></div>';
+    }).join('');
+    document.getElementById('evChunks').innerHTML=
+      ORDER.slice(0,k).map(c=>'<div class="ev-chunk '+c.role+'"><span>'+c.tag+'</span><span>'+c.why+'</span></div>').join('')+
+      ORDER.slice(k).filter(c=>c.role==='need').map(c=>'<div class="ev-chunk miss"><span>'+c.tag+'</span><span>NEEDED — not retrieved</span></div>').join('');
+    document.getElementById('evAns').innerHTML='<span class="lbl">generated answer</span>'+d.ans;
+    const v=document.getElementById('evVerdict');
+    v.className='ev-verdict '+d.verdict[0];v.innerHTML=d.verdict[1];
+  }
+  slider.addEventListener('input',render);
+  render();
+})();
+</script>
+</body>
+</html>

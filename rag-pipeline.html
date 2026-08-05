@@ -1,0 +1,2321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The pipeline, in slow motion — RAG</title>
+<!-- Companion to rag-lab.html tab 00. Presented from a projector, offline: the font link is
+     non-blocking on purpose, and nothing else in this file touches the network. One optional
+     raster (img/07-paperwork.png); every other visual is drawn here, because every other visual
+     gets cut, dissolved or flown somewhere, and you cannot slice a JPEG into chunks. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+/* Tokens copied verbatim from rag-lab.html:15-27. Copied, not linked — this file has to keep
+   working when it is the only thing on a USB stick. */
+:root{
+  --bg:#E9EDF1; --surface:#FFFFFF; --surface-2:#F3F6F9; --surface-3:#ECF0F5;
+  --ink:#13202B; --ink-soft:#516070; --ink-faint:#8A98A6; --line:#D6DEE6; --line-2:#E4EAF0;
+  --cobalt:#2F6BFF; --cobalt-ink:#1A4ED8; --cobalt-soft:#E4ECFF;
+  --amber:#D98518; --amber-ink:#9A5A00; --amber-soft:#FBEEDA;
+  --teal:#0E9C8B; --teal-soft:#DBF3EF;
+  --coral:#E5484D; --coral-soft:#FBE3E4;
+  --violet:#7A5AF8; --violet-soft:#ECE7FF;
+  --shadow:0 1px 2px rgba(19,32,43,.06),0 8px 24px rgba(19,32,43,.06);
+  --shadow-sm:0 1px 2px rgba(19,32,43,.08);
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --disp:"Space Grotesk",system-ui,sans-serif;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0C141B}
+body{font-family:var(--disp);color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.5}
+
+/* ============ fixed 1280x720 canvas, scaled to fit ============
+   Not a responsive layout. Venue projectors are 1280x800 or still 4:3; a fluid layout means
+   type size is a surprise at showtime. What is designed is what appears, letterboxed. */
+#vp{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+#cv{width:1280px;height:720px;flex:none;transform-origin:center center;
+  background:var(--bg);position:relative;overflow:hidden}
+#cv.blank{background:#000}
+#cv.blank>*{opacity:0}
+
+/* ---------- top bar ---------- */
+.top{position:absolute;left:44px;right:44px;top:24px;height:26px;display:flex;align-items:center;
+  justify-content:space-between;gap:20px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-faint);font-weight:600;white-space:nowrap}
+.eyebrow b{color:var(--cobalt-ink)}
+
+/* the lab's own 11 nodes, shrunk — the persistent "you are here" */
+#minimap{display:flex;align-items:center;gap:3px}
+.mm{width:15px;height:7px;border-radius:2px;background:var(--line);transition:.3s var(--ease)}
+.mm.a{background:#DCE3EA}
+.mm.on{background:var(--cobalt);width:26px;box-shadow:0 0 0 3px var(--cobalt-soft)}
+.mm.past{background:#B9C6D2}
+.mm-gap{width:11px}
+.mm-lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-faint);margin-left:9px;min-width:96px}
+
+/* ---------- title block ---------- */
+.head{position:absolute;left:44px;right:44px;top:58px;height:108px}
+.actrow{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.actpill{font-family:var(--mono);font-size:10px;font-weight:600;padding:3px 9px;border-radius:20px;
+  text-transform:uppercase;letter-spacing:.08em}
+.actpill.idx{background:var(--amber-soft);color:var(--amber-ink)}
+.actpill.qry{background:var(--cobalt-soft);color:var(--cobalt-ink)}
+.actpill.map{background:var(--surface-3);color:var(--ink-soft)}
+.stnum{font-family:var(--mono);font-size:11px;color:var(--ink-faint);font-weight:600}
+/* Phase pips. With → stepping one reveal at a time, a presenter otherwise has no way to see
+   they have walked onto the next slide with half a build still unspent behind them. */
+#pips{display:flex;align-items:center;gap:4px}
+#pips::before{content:"·";color:var(--line);margin-right:3px;font-family:var(--mono);font-size:11px}
+#pips i{display:block;width:6px;height:6px;border-radius:50%;background:var(--line);transition:.25s var(--ease)}
+#pips i.done{background:#B9C6D2}
+#pips i.on{background:var(--cobalt);box-shadow:0 0 0 2.5px var(--cobalt-soft)}
+.head h1{margin:0;font-size:31px;line-height:1.06;font-weight:700;letter-spacing:-.025em}
+.head h1 em{font-style:normal;color:var(--cobalt)}
+/* Two lines, hard-clipped. A caption that grows to three lines would push the stage body down
+   into the rail, and on a fixed canvas that is a clip rather than a scroll — i.e. invisible. */
+.head .cap{margin:6px 0 0;font-size:14px;line-height:1.45;color:var(--ink-soft);
+  max-height:41px;overflow:hidden}
+.head .cap b{color:var(--ink);font-weight:600}
+
+/* ---------- stage body ---------- */
+#body{position:absolute;left:44px;right:44px;top:174px;height:476px}
+.st{position:absolute;inset:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.note{padding:11px 14px;border-left:3px solid var(--amber);background:var(--amber-soft);
+  border-radius:0 10px 10px 0;font-size:13px;color:#5b3d0e}
+.note b{color:var(--amber-ink)}
+.note.cobalt{border-left-color:var(--cobalt);background:var(--cobalt-soft);color:#1c356e}
+.note.cobalt b{color:var(--cobalt-ink)}
+.note.coral{border-left-color:var(--coral);background:var(--coral-soft);color:#7d2226}
+.note.coral b{color:var(--coral)}
+.pill{font-family:var(--mono);font-size:10px;font-weight:600;padding:3px 8px;border-radius:20px;
+  text-transform:uppercase;letter-spacing:.05em;background:var(--surface-3);color:var(--ink-soft)}
+.pill.cobalt{background:var(--cobalt-soft);color:var(--cobalt-ink)}
+.pill.teal{background:var(--teal-soft);color:var(--teal)}
+.pill.coral{background:var(--coral-soft);color:var(--coral)}
+.pill.amber{background:var(--amber-soft);color:var(--amber-ink)}
+
+/* ---------- bottom rail ---------- */
+.rail{position:absolute;left:44px;right:44px;bottom:22px;height:34px;display:flex;
+  align-items:center;justify-content:space-between;gap:18px}
+#ticks{display:flex;align-items:center;gap:4px}
+.tk{width:22px;height:4px;border-radius:3px;background:var(--line);cursor:pointer;transition:.25s var(--ease)}
+.tk:hover{background:var(--ink-faint)}
+.tk.done{background:#B9C6D2}
+.tk.on{width:40px;background:var(--cobalt)}
+.tk.seam{background:transparent;width:12px;cursor:default;position:relative}
+.tk.seam::after{content:"";position:absolute;left:5px;top:-5px;width:1px;height:14px;background:var(--line)}
+.railmeta{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);letter-spacing:.06em;
+  display:flex;align-items:center;gap:16px;white-space:nowrap}
+.railmeta a{color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line)}
+.railmeta a:hover{color:var(--cobalt-ink);border-bottom-color:var(--cobalt)}
+kbd{font-family:var(--mono);font-size:10px;background:var(--surface);border:1px solid var(--line);
+  border-bottom-width:2px;border-radius:4px;padding:1px 5px;color:var(--ink-soft)}
+
+/* ---------- overview ---------- */
+#ovl{position:absolute;inset:0;background:rgba(233,237,241,.97);z-index:40;display:none;
+  padding:40px 44px;overflow:hidden}
+#ovl.on{display:block}
+#ovl h2{margin:0 0 4px;font-size:19px;font-weight:700;letter-spacing:-.02em}
+#ovl .sub{margin:0 0 18px;font-size:13px;color:var(--ink-soft)}
+.ovgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}
+.ovc{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 13px;
+  cursor:pointer;transition:.15s;min-height:92px}
+.ovc:hover{border-color:var(--cobalt);box-shadow:0 6px 18px rgba(47,107,255,.16);transform:translateY(-2px)}
+.ovc.on{border-color:var(--cobalt);background:var(--cobalt-soft)}
+.ovc .n{font-family:var(--mono);font-size:10px;color:var(--ink-faint);font-weight:600}
+.ovc .t{font-size:14px;font-weight:600;margin:5px 0 4px;letter-spacing:-.01em}
+.ovc .d{font-size:11.5px;color:var(--ink-soft);line-height:1.35}
+.ovc .bar{height:3px;border-radius:3px;margin-top:9px;background:var(--amber)}
+.ovc.q .bar{background:var(--cobalt)}
+.ovc.m .bar{background:var(--ink-faint)}
+
+/* ---------- help ---------- */
+#help{position:absolute;inset:0;background:rgba(19,32,43,.86);z-index:50;display:none;
+  align-items:center;justify-content:center}
+#help.on{display:flex}
+.helpbox{background:var(--surface);border-radius:18px;padding:26px 30px;width:520px;box-shadow:0 30px 70px rgba(0,0,0,.4)}
+.helpbox h3{margin:0 0 14px;font-size:16px;font-weight:700}
+.helpbox table{width:100%;border-collapse:collapse;font-size:13px}
+.helpbox td{padding:6px 0;border-bottom:1px solid var(--line-2);color:var(--ink-soft)}
+.helpbox td:first-child{width:150px}
+.helpbox tr:last-child td{border-bottom:0}
+
+/* ============================================================================
+   STAGE 1 — the corpus
+   ============================================================================ */
+.s1-shot{position:absolute;inset:0;border-radius:16px;overflow:hidden;background:var(--surface-2);
+  transition:opacity .7s var(--ease),transform .7s var(--ease)}
+.s1-shot img,.s1-shot svg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.s1-shot img{z-index:2}
+.s1-shot::after{content:"";position:absolute;inset:0;z-index:3;
+  background:linear-gradient(180deg,rgba(233,237,241,.82) 0%,rgba(233,237,241,.05) 46%)}
+.s1-over{position:absolute;left:34px;top:28px;z-index:4;max-width:560px}
+.s1-over .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--amber-ink);font-weight:600;margin-bottom:7px}
+.s1-over p{margin:0;font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.18}
+
+.s1-shelf{position:absolute;inset:0;display:grid;grid-template-columns:repeat(6,1fr);gap:14px;
+  align-content:start;opacity:0;transition:opacity .55s var(--ease)}
+.doccard{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:9px;
+  box-shadow:var(--shadow-sm);transform:translateY(14px);opacity:0;
+  transition:transform .5s var(--ease),opacity .5s var(--ease),border-color .3s,box-shadow .3s}
+.docmini{height:150px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:6px;
+  padding:9px 8px;overflow:hidden;position:relative}
+.docmini i{display:block;height:3px;border-radius:2px;background:#C9D3DD;margin-bottom:5px}
+.docmini i.h{height:5px;background:#A9B7C4;width:70%;margin-bottom:8px}
+.docmini i.s{width:55%}
+/* Each preview carries its document's own masthead colour, so opening the manual in the next
+   phase reads as opening THIS card rather than as cutting to a different document. */
+.docmini .mbar{height:13px;margin:-9px -8px 9px;display:flex;align-items:center;gap:4px;padding:0 7px}
+.docmini .mbar b{display:block;height:2.5px;border-radius:2px;background:rgba(255,255,255,.8);flex:none}
+.docmini .tbl{margin-top:7px;border:1px solid #9FD9D0;border-radius:3px;padding:0;overflow:hidden}
+.docmini .tbl u{display:block;height:5px;background:var(--teal)}
+.docmini .tbl .tb{padding:4px}
+.docmini .tbl i{margin-bottom:3px;height:2.5px;background:#B7DED7}
+.doctitle{font-size:11.5px;font-weight:600;line-height:1.25;margin:9px 2px 3px;letter-spacing:-.01em}
+.docmeta{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);margin:0 2px}
+.s1-shelf .docmeta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* the one we open */
+.s1-zoom{position:absolute;inset:0;display:flex;align-items:center;gap:26px;
+  opacity:0;pointer-events:none;transition:opacity .5s var(--ease)}
+.s1-note{flex:1;min-width:0}
+.s1-note h4{margin:0 0 8px;font-size:15px;font-weight:700;letter-spacing:-.02em}
+.s1-note p{margin:0 0 12px;font-size:13.5px;color:var(--ink-soft);line-height:1.55}
+.s1-note p b{color:var(--ink);font-weight:600}
+
+/* ---------- the printed page, used by stages 1, 2 and 12 ----------
+   Two accents and no more: COBALT is the document's own chrome (masthead, section heading,
+   figure), TEAL is the specification table. Amber is deliberately absent — in this film an
+   amber .note is the film talking to the audience, and an amber box printed inside the
+   fictional manual would muddle a meaning the room has already learned.
+   --pgx/--pgy exist so the masthead can bleed to the page edge in both the 428px copy
+   (stages 1-2) and the smaller one in stage 12, without hard-coding either padding. */
+.page{width:428px;flex:none;height:100%;background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;box-shadow:var(--shadow);overflow:hidden;
+  --pgx:22px;--pgy:18px;padding:var(--pgy) var(--pgx) 14px;position:relative;
+  display:flex;flex-direction:column;font-size:8.6px;line-height:1.62;color:#2b3a47}
+.pg-mast{margin:calc(var(--pgy)*-1) calc(var(--pgx)*-1) 0;padding:5px var(--pgx);
+  background:var(--cobalt);color:#fff;display:flex;justify-content:space-between;align-items:center;
+  font-family:var(--mono);font-size:7.2px;letter-spacing:.17em;text-transform:uppercase;font-weight:600;
+  transition:opacity .5s var(--ease),transform .5s var(--ease)}
+.pg-mast .r{color:#B9D0FF;letter-spacing:.13em}
+.pg-h2{margin:10px 0 0;font-size:11.4px;font-weight:700;letter-spacing:-.015em;color:var(--cobalt-ink);
+  display:flex;align-items:baseline;gap:5px;
+  transition:opacity .5s var(--ease),transform .5s var(--ease)}
+.pg-h2 i{font-style:normal;font-family:var(--mono);font-size:9px;color:var(--cobalt);font-weight:600}
+.pg-fig{margin:9px 0 0;height:54px;border:1px solid #C9DAFF;border-radius:5px;
+  background:#F5F8FF;display:flex;align-items:center;justify-content:center;
+  transition:opacity .5s var(--ease),transform .5s var(--ease)}
+.pg-fig svg{width:142px;height:52px}
+.pg-figcap{font-family:var(--mono);font-size:7px;color:var(--cobalt-ink);text-align:center;margin-top:4px;
+  transition:opacity .5s var(--ease)}
+.pg-cols{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:16px;padding-top:10px;min-height:0}
+.pg-col{display:flex;flex-direction:column;gap:7px;transition:transform .6s var(--ease),opacity .6s var(--ease)}
+.pg-col>span{transition:opacity .5s var(--ease)}
+.pg-tbl{margin-top:6px;width:100%;border:1px solid #9FD9D0;border-radius:5px;overflow:hidden;
+  border-collapse:separate;border-spacing:0;font-family:var(--mono);font-size:7.4px;
+  transition:opacity .5s var(--ease),transform .5s var(--ease)}
+.pg-tbl th{background:var(--teal);color:#fff;text-align:left;padding:3px 6px;font-weight:600;
+  font-size:6.5px;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.pg-tbl td{padding:3px 6px;border-top:1px solid #CFE9E4;color:#26433f}
+.pg-tbl th+th,.pg-tbl td+td{text-align:right}
+.pg-tbl td+td{border-left:1px solid #CFE9E4;font-weight:600}
+.pg-tbl th+th{border-left:1px solid rgba(255,255,255,.4)}
+.pg-tbl tbody tr:nth-child(odd) td{background:var(--teal-soft)}
+.pg-foot{padding-top:7px;margin-top:8px;border-top:1px solid var(--line-2);
+  font-family:var(--mono);font-size:7.4px;color:var(--ink-faint);
+  display:flex;justify-content:space-between;align-items:baseline;
+  transition:opacity .5s var(--ease),transform .5s var(--ease)}
+.pg-foot .fn{color:var(--cobalt-ink);font-weight:600;font-size:8.4px}
+.sn{border-radius:3px;transition:background .3s,color .3s,box-shadow .3s}
+.sn.lit{background:var(--teal-soft);box-shadow:0 0 0 2px var(--teal-soft)}
+
+/* ============================================================================
+   STAGE 2 — parse
+   ============================================================================ */
+.s2{display:flex;gap:22px;height:100%;align-items:stretch}
+.s2-left{flex:none;width:428px;position:relative}
+.s2-left .page{position:absolute;inset:0;width:auto;height:auto;
+  transition:opacity .55s var(--ease),transform .55s var(--ease)}
+.s2-right{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+/* The casualty list gets its own column. Earlier these labels flew out across the page and
+   landed on top of the text they were describing — legible in a screenshot, unreadable from
+   row twelve. A column costs 130px and reads instantly. */
+.s2-mid{flex:none;width:130px;display:flex;flex-direction:column;justify-content:center;gap:7px}
+.s2-mid .ml{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--coral);font-weight:600;margin-bottom:2px}
+.s2-arrow{font-size:20px;color:var(--ink-faint);transition:.4s;text-align:center;margin-bottom:6px}
+
+.stream{flex:1;min-height:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:16px 18px;font-family:var(--mono);font-size:11.6px;line-height:1.85;color:#2b3a47;
+  overflow:hidden;position:relative;box-shadow:var(--shadow-sm)}
+.stream .lbl,.s3-stream .lbl,.s11-streambox .lbl{position:absolute;right:12px;top:9px;font-size:9px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
+.s11-streambox{position:relative}
+.stream .sn{opacity:0;transition:opacity .45s var(--ease),background .3s,box-shadow .3s}
+.stream .sn.in{opacity:1}
+.stream .sn.tbl{color:var(--coral);background:var(--coral-soft);padding:1px 3px}
+.disc{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-soft);background:var(--surface);border:1px dashed var(--line);border-radius:8px;
+  padding:5px 8px;opacity:0;text-align:center;line-height:1.3;
+  transition:opacity .5s var(--ease),transform .5s var(--ease);transform:translateX(-10px)}
+.disc.in{opacity:1;transform:none}
+/* the last casualty is the one the stage is actually about */
+.disc.bad{border-style:solid;border-color:var(--coral);background:var(--coral-soft);color:var(--coral);font-weight:600}
+
+/* ============================================================================
+   STAGE 3 — chunk
+   ============================================================================ */
+.s3{display:flex;flex-direction:column;gap:14px;height:100%}
+.s3-stream{position:relative;flex:none;height:150px;background:var(--surface);border:1px solid var(--line);
+  border-radius:12px;padding:14px 18px;font-family:var(--mono);font-size:11.4px;line-height:1.8;
+  color:#2b3a47;overflow:hidden;box-shadow:var(--shadow-sm);transition:opacity .5s var(--ease)}
+.blade{position:absolute;left:0;top:-4px;width:calc(100% - 0px);height:2px;background:var(--cobalt);
+  box-shadow:0 0 10px rgba(47,107,255,.6);opacity:0;transition:opacity .3s}
+.blade::after{content:"";position:absolute;right:-5px;top:-4px;width:10px;height:10px;border-radius:50%;
+  background:var(--cobalt)}
+.s3-cards{flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,1fr);gap:11px}
+.ck{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:11px 12px;
+  display:flex;flex-direction:column;box-shadow:var(--shadow-sm);opacity:0;transform:translateY(18px) scale(.97);
+  transition:opacity .45s var(--ease),transform .45s var(--ease),border-color .3s,box-shadow .3s}
+.ck .ckh{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.ck .ckn{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--cobalt-ink);font-weight:600}
+.ck .cks{font-family:var(--mono);font-size:9px;color:var(--ink-faint)}
+.ck .ckb{font-family:var(--mono);font-size:10.2px;line-height:1.66;color:#2b3a47;flex:1;overflow:hidden}
+.ck .ov{background:var(--amber-soft);box-shadow:0 0 0 1px var(--amber-soft);border-radius:3px;color:#7a4d05}
+.ck .tblfrag{color:var(--coral);background:var(--coral-soft);border-radius:3px;padding:0 2px}
+.s3-foot{flex:none;display:flex;align-items:center;gap:16px}
+.dial{display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:11px;padding:8px 14px}
+.dial .dl{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint)}
+.dial .dtrack{width:96px;height:4px;border-radius:4px;background:var(--line);position:relative}
+.dial .dthumb{position:absolute;left:38%;top:-6px;width:15px;height:15px;border-radius:50%;
+  background:var(--cobalt);border:3px solid #fff;box-shadow:var(--shadow-sm)}
+.dial .dv{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--cobalt-ink)}
+
+/* ============================================================================
+   STAGE 4 — embed
+   ============================================================================ */
+.s4,.s7{display:flex;flex-direction:column;gap:14px;height:100%}
+.s4-row{flex:1;min-height:0;display:flex;align-items:center;justify-content:space-between}
+.s4-foot{flex:none}
+.s4-col{flex:none;display:flex;flex-direction:column;align-items:center;gap:9px}
+.s4-cap{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-faint);text-align:center}
+.s4-chunk{width:198px;background:var(--surface);border:1px solid var(--line);border-radius:11px;
+  padding:12px;box-shadow:var(--shadow-sm);font-family:var(--mono);font-size:10px;line-height:1.62;color:#2b3a47}
+.s4-chunk .ckn{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--cobalt-ink);font-weight:600;display:block;margin-bottom:6px}
+.encoder{width:150px;height:150px;border-radius:20px;background:linear-gradient(160deg,#20344A,#13202B);
+  display:flex;align-items:center;justify-content:center;position:relative;
+  box-shadow:0 14px 34px rgba(19,32,43,.32);transition:box-shadow .4s,transform .4s var(--ease)}
+.encoder.hot{box-shadow:0 14px 44px rgba(47,107,255,.5),0 0 0 5px var(--cobalt-soft)}
+.encoder .en{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:#8FB4FF;text-align:center;line-height:1.7}
+.encoder .en b{display:block;color:#fff;font-size:13px;letter-spacing:-.01em;text-transform:none;margin-bottom:3px}
+.encoder .ring{position:absolute;inset:-9px;border-radius:26px;border:2px solid var(--cobalt);
+  opacity:0;transition:opacity .3s}
+.encoder.hot .ring{opacity:.5;animation:pulse 1.5s ease-out infinite}
+@keyframes pulse{0%{transform:scale(1);opacity:.55}100%{transform:scale(1.13);opacity:0}}
+.s4-arrow{flex:none;color:var(--ink-faint);font-size:19px;padding:0 4px;opacity:.35;transition:opacity .4s}
+.s4-arrow.on{opacity:1;color:var(--cobalt)}
+
+.vec{display:grid;grid-template-columns:repeat(2,1fr);gap:3px 12px;font-family:var(--mono);font-size:10.5px;
+  background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:12px 14px;
+  box-shadow:var(--shadow-sm);width:190px}
+.vec span{opacity:0;transition:opacity .18s;color:#2b3a47;display:flex;justify-content:space-between;gap:6px}
+.vec span.in{opacity:1}
+.vec span i{color:var(--ink-faint);font-style:normal;font-size:9px}
+.heat{display:flex;gap:2px;width:190px;height:34px;opacity:0;transform:scaleY(.4);
+  transition:opacity .4s var(--ease),transform .4s var(--ease)}
+.heat b{flex:1;border-radius:2px}
+.dot1{width:190px;height:96px;display:flex;align-items:center;justify-content:center;opacity:0;
+  transition:opacity .4s var(--ease)}
+.dot1 i{width:15px;height:15px;border-radius:50%;background:var(--cobalt);
+  box-shadow:0 0 0 7px var(--cobalt-soft),0 6px 16px rgba(47,107,255,.35);display:block}
+
+/* ============================================================================
+   STAGES 5, 6, 8 — the point cloud
+   ============================================================================ */
+.cloudwrap{position:relative;height:100%;display:flex;gap:18px}
+.cloudbox{flex:1;min-width:0;position:relative;border:1px solid var(--line);border-radius:14px;
+  overflow:hidden;background:
+  radial-gradient(circle at 1px 1px, rgba(19,32,43,.09) 1px, transparent 0) 0 0/22px 22px, var(--surface-2)}
+.cloudbox canvas{display:block;width:100%;height:100%}
+.cloudside{flex:none;width:250px;display:flex;flex-direction:column;gap:10px}
+.cloudside h4{margin:0;font-size:13px;font-weight:700;letter-spacing:-.01em}
+.legend{display:flex;flex-direction:column;gap:6px;font-size:11.5px;color:var(--ink-soft)}
+.legend span{display:flex;align-items:center;gap:8px}
+.legend i{width:9px;height:9px;border-radius:50%;flex:none}
+.bignum{font-family:var(--mono);font-weight:600;letter-spacing:-.02em}
+
+/* stage 6 — a legend for the three things on the canvas. Without it a filled blob with a
+   ringed marker in the middle is a decoration; with it, it is a data structure. */
+.glg{display:flex;gap:9px;align-items:flex-start;font-size:11.4px;color:var(--ink-soft);
+  line-height:1.4;transition:opacity .45s var(--ease)}
+.glg+.glg{margin-top:9px;padding-top:9px;border-top:1px solid var(--line-2)}
+.glg div b{color:var(--ink);font-weight:600}
+.glg .gi{flex:none;width:17px;height:17px;margin-top:1px;position:relative}
+.gi.dot::before{content:"";position:absolute;left:4px;top:4px;width:9px;height:9px;border-radius:50%;
+  background:var(--cobalt)}
+.gi.blob::before{content:"";position:absolute;inset:0;border-radius:50%;
+  background:rgba(47,107,255,.13);border:1.5px dashed var(--cobalt)}
+.gi.ring::before{content:"";position:absolute;left:1px;top:1px;width:15px;height:15px;border-radius:50%;
+  background:#fff;border:2.5px solid var(--cobalt)}
+.gi.ring::after{content:"";position:absolute;left:6.5px;top:6.5px;width:4px;height:4px;border-radius:50%;
+  background:var(--cobalt)}
+
+/* stage 9 — the two steps of the hop, written down. The canvas shows them happening; this
+   says what happened, so the finished frame survives being read cold. */
+.sstep{display:flex;gap:9px;font-size:11.4px;color:var(--ink-soft);line-height:1.42;opacity:0;
+  transition:opacity .45s var(--ease)}
+.sstep+.sstep{margin-top:9px;padding-top:9px;border-top:1px solid var(--line-2)}
+.sstep>b{flex:none;width:17px;height:17px;border-radius:50%;background:var(--cobalt);color:#fff;
+  font-family:var(--mono);font-size:9.5px;font-weight:600;display:flex;align-items:center;
+  justify-content:center;margin-top:1px}
+.sstep div b{color:var(--ink);font-weight:600}
+.sstep .win{font-family:var(--mono);font-size:10.4px;color:var(--teal);background:var(--teal-soft);
+  padding:1px 5px;border-radius:4px;font-weight:600}
+.annot{position:absolute;background:var(--surface);border:1px solid var(--line);border-radius:9px;
+  padding:7px 11px;font-size:11.5px;box-shadow:var(--shadow);opacity:0;
+  transition:opacity .45s var(--ease),transform .45s var(--ease);transform:translateY(6px);z-index:3}
+.annot.in{opacity:1;transform:none}
+.annot b{font-weight:600}
+.annot .m{font-family:var(--mono);font-size:10px;color:var(--ink-faint);display:block}
+
+/* cosine inset (stage 8) */
+.cosbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 13px;
+  box-shadow:var(--shadow-sm)}
+.cosbox h5{margin:0 0 8px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-faint);font-weight:600}
+.hits{display:flex;flex-direction:column;gap:6px}
+.hitrow{display:grid;grid-template-columns:1fr 46px;gap:9px;align-items:center;font-size:11.5px;
+  padding:7px 10px;border-radius:9px;background:var(--surface-2);border:1px solid var(--line-2);
+  opacity:0;transform:translateX(8px);transition:.4s var(--ease)}
+.hitrow.in{opacity:1;transform:none}
+/* NOT .top — that is the page header bar's class, and a bare `.top` on these rows inherits its
+   position:absolute and throws them across the canvas. */
+.hitrow.best{background:var(--teal-soft);border-color:var(--teal)}
+.hitrow .hv{font-family:var(--mono);font-size:11px;font-weight:600;text-align:right}
+.hitrow .ht{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em}
+/* Stage 9's sidebar carries one more block than stage 5's — the two-step account of the hop.
+   Everything below it tightens by a few pixels so the third hit row stays above the rail. */
+.s9c{gap:7px}
+.s9c .cosbox{padding:10px 12px}
+.s9c .cosbox h5{margin-bottom:4px}
+.s9c .sstep{font-size:11.2px}
+.s9c .sstep+.sstep{margin-top:8px;padding-top:8px}
+.s9c .hits{gap:5px}
+.s9c .hitrow{padding:4px 10px}
+.s9c .s4-cap{margin-top:2px}
+
+/* ============================================================================
+   THE SEAM
+   ============================================================================ */
+.seamwrap{height:100%;display:flex;flex-direction:column;justify-content:center;gap:0}
+.seamrow{display:flex;align-items:center;gap:26px;padding:20px 26px;border-radius:16px;
+  border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow-sm);
+  opacity:0;transform:translateY(12px);transition:.55s var(--ease)}
+.seamrow.in{opacity:1;transform:none}
+.clockface{flex:none;width:96px;height:96px;border-radius:50%;border:3px solid var(--line);
+  position:relative;background:var(--surface-2)}
+.clockface::before,.clockface::after{content:"";position:absolute;left:50%;top:50%;background:var(--ink);
+  border-radius:2px;transform-origin:0 50%}
+.clockface::before{width:30px;height:3px;transform:translate(0,-50%) rotate(var(--h,-60deg))}
+.clockface::after{width:40px;height:2px;transform:translate(0,-50%) rotate(var(--m,30deg))}
+.seamrow.idx .clockface{border-color:var(--amber)}
+.seamrow.qry .clockface{border-color:var(--cobalt)}
+.seamtxt{flex:1;min-width:0}
+.seamtxt .k{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:600;margin-bottom:5px}
+.seamrow.idx .seamtxt .k{color:var(--amber-ink)} .seamrow.qry .seamtxt .k{color:var(--cobalt-ink)}
+.seamtxt h4{margin:0 0 5px;font-size:20px;font-weight:700;letter-spacing:-.02em}
+.seamtxt p{margin:0;font-size:13.5px;color:var(--ink-soft)}
+.seamtime{flex:none;text-align:right}
+.seamtime .big{font-family:var(--mono);font-size:30px;font-weight:600;letter-spacing:-.03em;line-height:1}
+.seamrow.idx .seamtime .big{color:var(--amber-ink)} .seamrow.qry .seamtime .big{color:var(--cobalt-ink)}
+.seamtime .sm{font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:4px;letter-spacing:.06em}
+.seamdiv{display:flex;align-items:center;gap:14px;padding:14px 4px;opacity:0;transition:.5s var(--ease) .2s}
+.seamdiv.in{opacity:1}
+.seamdiv hr{flex:1;border:0;border-top:1px dashed var(--line);margin:0}
+.seamdiv span{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+
+/* ============================================================================
+   STAGE 7 — the question
+   ============================================================================ */
+.asker{width:250px;flex:none}
+.bubble{background:var(--surface);border:1px solid var(--line);border-radius:14px 14px 14px 4px;
+  padding:14px 16px;font-size:15px;font-weight:600;letter-spacing:-.01em;box-shadow:var(--shadow);
+  min-height:58px;position:relative}
+.bubble .car{display:inline-block;width:2px;height:15px;background:var(--cobalt);vertical-align:-2px;
+  margin-left:1px;animation:bl .9s steps(1) infinite}
+@keyframes bl{50%{opacity:0}}
+.bubble.done .car{display:none}
+.s7-same{opacity:0;transition:opacity .5s var(--ease);white-space:nowrap;margin-top:2px}
+.s7-same.in{opacity:1}
+
+/* ============================================================================
+   STAGE 9 — assemble the prompt   ★ the centrepiece
+   ============================================================================ */
+.s9{display:flex;flex-direction:column;gap:12px;height:100%}
+.s9-row{flex:1;min-height:0;display:flex;gap:20px}
+.s9-src{flex:none;width:264px;display:flex;flex-direction:column;gap:9px}
+.srcck{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 11px;
+  font-family:var(--mono);font-size:9.4px;line-height:1.58;color:#2b3a47;box-shadow:var(--shadow-sm);
+  transition:.35s var(--ease);position:relative}
+.srcck.sent{border-color:var(--teal);background:var(--teal-soft)}
+.srcck .h{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;
+  font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--cobalt-ink);font-weight:600}
+.srcck.sent .h{color:var(--teal)}
+.s9-prompt{flex:1;min-width:0;background:#13202B;border-radius:14px;padding:16px 18px;
+  font-family:var(--mono);font-size:11px;line-height:1.72;color:#B7C7D6;overflow:hidden;
+  box-shadow:0 18px 44px rgba(19,32,43,.28);position:relative;display:flex;flex-direction:column}
+.s9-prompt .plbl{position:absolute;right:14px;top:12px;font-size:8.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:#4B6274}
+.pl{opacity:0;transition:opacity .4s var(--ease);flex:none}
+.pl.in{opacity:1}
+.pl.sp{height:9px}
+.pl.tag{color:#5FA0FF}
+.pl.sys{color:#8FA3B4}
+.pl.q{color:#FFD08A}
+.pl.chunk{color:#DCE7F0;background:rgba(47,107,255,.14);border-left:2px solid #2F6BFF;
+  padding:3px 8px;margin:2px 0;border-radius:0 4px 4px 0;display:block}
+.pl.chunk .cn{color:#5FA0FF;font-size:9px;letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:2px}
+.s9-punch{flex:none;opacity:0;transition:opacity .5s var(--ease)}
+
+/* ============================================================================
+   STAGE 10 — generate
+   ============================================================================ */
+.s10{display:flex;gap:20px;height:100%;align-items:stretch}
+.s10-prompt{flex:none;width:300px;background:#13202B;border-radius:14px;padding:14px 16px;
+  font-family:var(--mono);font-size:9px;line-height:1.6;color:#7E93A5;overflow:hidden;
+  box-shadow:0 14px 34px rgba(19,32,43,.26);transition:.5s var(--ease)}
+.s10-prompt .pl{opacity:1}
+.model{flex:none;width:130px;align-self:center;display:flex;flex-direction:column;align-items:center;gap:9px}
+.modelbox{width:118px;height:118px;border-radius:20px;background:linear-gradient(160deg,#8E76FF,#6742F5);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;
+  letter-spacing:-.01em;box-shadow:0 14px 34px rgba(122,90,248,.4);position:relative;transition:.4s}
+.modelbox.hot{box-shadow:0 14px 44px rgba(122,90,248,.62),0 0 0 5px var(--violet-soft)}
+.s10-ans{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:18px 20px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.s10-ans .al{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-faint);margin-bottom:10px}
+.answer{font-size:16px;line-height:1.62;letter-spacing:-.005em;flex:1}
+.cite{font-family:var(--mono);font-size:11px;font-weight:600;background:var(--teal-soft);color:var(--teal);
+  padding:1px 6px;border-radius:5px;margin:0 1px;cursor:default;transition:.25s;
+  box-shadow:0 0 0 0 rgba(14,156,139,0)}
+.cite.lit{background:var(--teal);color:#fff;box-shadow:0 0 0 4px var(--teal-soft)}
+.car2{display:inline-block;width:2px;height:16px;background:var(--violet);vertical-align:-3px;
+  animation:bl .9s steps(1) infinite}
+
+/* ============================================================================
+   STAGE 11 — cite
+   ============================================================================ */
+/* Three columns, not four. A fourth (the flat text stream) fitted, but only by pushing the
+   printed page down to 7.2px — which is 5.8px on a 1024x768 projector, i.e. illegible on the
+   one stage that is the payoff. The stream column was also the most redundant of the four: the
+   chunk already shows those words, and the page shows them in position, which is the stronger
+   version of the same point. */
+.s11{display:flex;gap:18px;height:100%;align-items:stretch}
+.s11-col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.s11-lbl{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-faint);flex:none}
+.s11-ans{flex:none;width:320px}
+.s11-ansbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 17px;
+  font-size:14.5px;line-height:1.6;box-shadow:var(--shadow-sm);flex:1}
+.s11-ck{flex:none;width:270px}
+.s11-pg{flex:1;min-width:0}
+.s11 .page{width:100%;font-size:9.4px;--pgx:19px;--pgy:16px}
+.s11 .pg-cols{gap:16px}
+.s11 .pg-mast{font-size:7.6px}
+.s11 .pg-h2{font-size:12px}
+.s11 .pg-tbl{font-size:8.2px}
+.s11 .pg-tbl th{font-size:7px}
+.s11-ckbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 14px;
+  font-family:var(--mono);font-size:11px;line-height:1.66;color:#2b3a47;box-shadow:var(--shadow-sm);flex:1;
+  transition:.3s}
+.s11-ckbox.lit{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-soft)}
+.s11-ckbox .h{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--cobalt-ink);
+  font-weight:600;margin-bottom:6px}
+.tracks{position:absolute;inset:0;pointer-events:none;z-index:5}
+.tracks path{fill:none;stroke:var(--teal);stroke-width:1.6;stroke-dasharray:5 4;opacity:0;
+  transition:opacity .4s}
+.tracks path.in{opacity:.75;animation:march 1s linear infinite}
+@keyframes march{to{stroke-dashoffset:-18}}
+
+/* ============================================================================
+   STAGE 12 — the map
+   ============================================================================ */
+.s12{height:100%;display:flex;flex-direction:column;justify-content:center;gap:0}
+.lanebar{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-faint);font-weight:600;margin:0 0 9px;display:flex;align-items:center;gap:9px}
+.lanebar::before{content:"";width:26px;height:2px;border-radius:2px;background:var(--line)}
+.lanebar.idx::before{background:var(--amber)} .lanebar.qry::before{background:var(--cobalt)}
+.lane{display:flex;align-items:center;gap:0;margin-bottom:20px}
+.nd{flex:1;min-width:0;text-align:center;padding:13px 6px;border:1px solid var(--line);border-radius:12px;
+  background:var(--surface);transition:.4s var(--ease);opacity:0;transform:translateY(8px)}
+.nd.in{opacity:1;transform:none}
+.nd .nlab{font-size:12.5px;font-weight:600;letter-spacing:-.01em}
+.nd .nsub{font-family:var(--mono);font-size:9px;color:var(--ink-faint);margin-top:3px}
+.nd .nst{font-family:var(--mono);font-size:8.5px;color:var(--cobalt-ink);margin-top:5px;opacity:0;transition:.4s}
+.nd.showst .nst{opacity:1}
+.lane.idx .nd.in{border-color:var(--amber);background:var(--amber-soft)}
+.lane.idx .nd.in .nst{color:var(--amber-ink)}
+.lane.qry .nd.in{border-color:var(--cobalt);background:var(--cobalt-soft)}
+.ar{flex:0 0 22px;text-align:center;color:var(--ink-faint);font-size:14px;line-height:1;opacity:0;transition:.4s}
+.ar.in{opacity:1}
+.s12-cta{display:flex;align-items:center;gap:14px;margin-top:4px;opacity:0;transition:.5s var(--ease)}
+.s12-cta.in{opacity:1}
+.ctabtn{display:inline-flex;align-items:center;gap:9px;background:var(--cobalt);color:#fff;
+  border-radius:11px;padding:11px 17px;font-size:14px;font-weight:600;text-decoration:none;
+  box-shadow:0 8px 20px rgba(47,107,255,.28)}
+.ctabtn:hover{background:var(--cobalt-ink)}
+
+/* ============================================================================
+   Reduced motion. Same blanket kill-switch as rag-lab.html:250. Every stage's
+   applyEnd() paints a complete diagram, so removing all motion removes nothing.
+   ============================================================================ */
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+
+<div id="vp">
+<div id="cv">
+
+  <div class="top">
+    <div class="eyebrow">The pipeline, in slow motion · <b>lab tab 00</b></div>
+    <div id="minimap"></div>
+  </div>
+
+  <div class="head">
+    <div class="actrow">
+      <span class="actpill" id="actPill">indexing</span>
+      <span class="stnum" id="stNum">01 / 13</span>
+      <span id="pips"></span>
+    </div>
+    <h1 id="stTitle">—</h1>
+    <p class="cap" id="stCap">—</p>
+  </div>
+
+  <div id="body"></div>
+
+  <div class="rail">
+    <div id="ticks"></div>
+    <div class="railmeta">
+      <span><kbd>→</kbd> next reveal · <kbd>R</kbd> replay · <kbd>A</kbd> play all · <kbd>?</kbd> keys</span>
+      <a href="rag-lab.html">← back to the lab</a>
+    </div>
+  </div>
+
+  <div id="ovl">
+    <h2>All thirteen stages</h2>
+    <p class="sub">Click any stage to jump to it. Every stage is shown finished — no animation, no waiting.</p>
+    <div class="ovgrid" id="ovGrid"></div>
+  </div>
+
+  <div id="help">
+    <div class="helpbox">
+      <h3>Keys</h3>
+      <table>
+        <tr><td><kbd>→</kbd> <kbd>Space</kbd> <kbd>PageDown</kbd></td><td>next reveal — then the next stage</td></tr>
+        <tr><td><kbd>←</kbd> <kbd>PageUp</kbd></td><td>one reveal back — then the previous stage</td></tr>
+        <tr><td><kbd>R</kbd></td><td>replay this stage on its own timers</td></tr>
+        <tr><td><kbd>A</kbd></td><td>play the whole film, hands off</td></tr>
+        <tr><td><kbd>O</kbd></td><td>overview — click to jump</td></tr>
+        <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>first / last stage</td></tr>
+        <tr><td><kbd>F</kbd></td><td>fullscreen</td></tr>
+        <tr><td><kbd>B</kbd></td><td>blank to black</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>back to the lab</td></tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+/* ==========================================================================================
+   THE PIPELINE, IN SLOW MOTION
+   Companion to rag-lab.html tab 00. Thirteen stages; the lab's eleven map nodes are the spine.
+
+   Every stage is `{ id, act, node, title, cap, phases, cloud?, build() }`.
+   `build()` returns DOM carrying a `_paint(ph)` closure. Nothing is time-based: a phase is a
+   number, _paint is a pure function of it, and → simply increments it. That is what makes
+   finish() (jump straight to the finished diagram) trivial and what makes the whole film
+   presentable with animation switched off. That is the acceptance test.
+   ========================================================================================== */
+
+/* ---------- IMAGE MANIFEST ----------
+   The one place to edit if your generator emits .jpg. A mismatched extension fails silently:
+   the slot just keeps showing its SVG and nothing tells you why. */
+const IMAGES = { paperwork: 'img/07-paperwork.png' };
+
+const REDUCE = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+/* ==========================================================================================
+   THE MATERIAL
+   One page of the Aeronote user manual — the same fictional product as the lab's CORPUS
+   (rag-lab.html:691), so tabs 01-05 are literally zoom-ins on text the room has already read.
+   Sentences are addressable so a citation in stage 11 can light the same words in three
+   places at once: the answer, the chunk, and the original page.
+   ========================================================================================== */
+const S = {
+  s1 : "The Aeronote is a 10.3-inch e-ink tablet for handwriting and reading; its matte screen cuts glare and eye strain.",
+  s2a: "Because the display reflects ambient light rather than",
+  s2b: "emitting its own, it stays legible in conditions where a backlit panel washes out.",
+  s3 : "On a single charge it runs for about three weeks of typical daily note-taking before it needs power again.",
+  s4 : "Charging is over USB-C and takes roughly two hours from empty.",
+  s5 : "Notes sync automatically to the cloud, and any page can be exported as a PDF or plain text file.",
+  s6a: "At 375 grams the device is lighter than most hardcover books, and the",
+  s6b: "magnesium frame is 6.8 mm thick.",
+  tbl: "Screen 10.3 in Weight 375 g Charge 3 weeks"
+};
+const COL_A = ['s1','s2a','s2b','s3'];
+const COL_B = ['s4','s5','s6a','s6b'];
+
+/* Chunks at ~240 characters. Note chunk 1 and chunk 2 BOTH contain s2a — that is the overlap,
+   and it is why the film can show overlap as the same words appearing twice rather than as a
+   number in a caption. Note also that chunk 1 ends mid-sentence: an honest bad cut. We show it
+   and move on; turning the size dial is tab 02's job, not this film's. */
+const CHUNKS = [
+  { n:1, parts:['s1','s2a'],            chars:171, ovl:'s2a' },
+  { n:2, parts:['s2a','s2b','s3'],      chars:245, ovl:'s2a' },
+  { n:3, parts:['s4','s5','s6a'],       chars:229 },
+  { n:4, parts:['s6b','tbl'],           chars:74,  junk:true }
+];
+const chunkText = c => c.parts.map(k=>S[k]).join(' ');
+
+/* The film's question. Chosen because it is not a punchline in any lab tab: "battery life",
+   "money back" and the 45-day return window all belong to tabs 03 and 05 and must arrive there
+   unspent. This one is a mild vocabulary mismatch (outdoors / glare) which previews tab 03
+   without paying it off. */
+const QUESTION = "Is the screen readable outdoors?";
+
+/* Retrieval result. Fixed, not computed: this is a film, and a film has to land the same way
+   every time. Chunk 3 is deliberately in the top-3 and deliberately never cited — retrieval
+   hands over three, the model uses two. That is a real property of every RAG system and it
+   sets up tab 08 without explaining it here. */
+const HITS = [
+  { n:1, score:0.82, tag:'manual · p17' },
+  { n:2, score:0.74, tag:'manual · p17' },
+  { n:3, score:0.38, tag:'manual · p17' }
+];
+
+const ANSWER = [
+  {t:"Yes. The Aeronote uses a "},
+  {t:"matte e-ink screen that cuts glare and eye strain", hl:1},
+  {cite:1},
+  {t:", and because the display "},
+  {t:"reflects ambient light rather than emitting its own, it stays legible where a backlit panel would wash out", hl:2},
+  {cite:2},{t:"."}
+];
+
+/* The six documents on the shelf. Only the first is opened; the rest exist so the corpus reads
+   as a corpus and so the point cloud in stage 5 has something to be a cloud of. */
+const DOCS = [
+  {t:'Aeronote — User Manual',        m:'PDF · 48 pp',  k:'manual',  c:'--cobalt', s:'the manual', tbl:true },
+  {t:'Support — Returns & Refunds',   m:'HTML · web',   k:'support', c:'--amber',  s:'support pages' },
+  {t:'Limited Warranty',              m:'PDF · 3 pp',   k:'warranty',c:'--violet', s:'the warranty' },
+  {t:'Aeronote 2 — Tech Spec',        m:'PDF · 12 pp',  k:'spec',    c:'--teal',   s:'the spec sheet', tbl:true },
+  {t:'Firmware 4.2 — release notes',  m:'Markdown',     k:'notes',   c:'--ink-faint', s:'release notes' },
+  {t:'Re: bulk order — 40 units',     m:'Email thread', k:'email',   c:'--coral',  s:'an email thread' }
+];
+
+/* ==========================================================================================
+   THE POINT CLOUD  (stages 5, 6, 8)
+   Hand-rolled 3-D: a rotation matrix, a perspective divide, a z-sort. Roughly forty lines.
+   Vendoring three.js to get this would be ~600 KB of dependency in a file that has to run off
+   a USB stick in a room with no wifi, for an effect that is genuinely this small.
+
+   It rotates briefly and then SETTLES. A continuously spinning cloud is unreadable from the
+   back of a room, and the rest pose is deliberately near-flat so it reads as the same object
+   as tab 01's 2-D map rather than as a second, different picture.
+   ========================================================================================== */
+const Cloud = (function(){
+  const COLORS = {
+    manual:'#2F6BFF', support:'#D98518', warranty:'#7A5AF8',
+    spec:'#0E9C8B',  notes:'#8A98A6',   email:'#E5484D', query:'#13202B'
+  };
+  /* Deterministic PRNG. The cloud must look identical on every run and on every machine —
+     a demo that reshuffles itself is a demo you cannot rehearse. */
+  let seed = 1337;
+  const rnd = () => (seed = (seed*1664525 + 1013904223) % 4294967296) / 4294967296;
+  const g = () => (rnd()+rnd()+rnd()-1.5)/1.5;   // cheap gaussian-ish
+
+  /* Spread far enough apart that the six regions in stage 6 read as six PLACES. They were
+     tighter before, which was fine for a cloud of dots and stopped being fine the moment the
+     regions were drawn as filled areas and started swallowing each other. */
+  const CENTRES = {
+    manual:[-0.30,-0.14, 0.10], support:[ 0.60, 0.34,-0.16], warranty:[ 0.52,-0.44, 0.22],
+    spec:  [-0.06, 0.56,-0.30], notes:  [-0.70, 0.30, 0.34], email:   [ 0.06,-0.62,-0.34]
+  };
+  const COUNTS = { manual:6, support:9, warranty:8, spec:9, notes:7, email:7 };
+
+  const pts = [];
+  /* The four tracked chunks are hand-placed, not scattered. Chunks 1, 2 and 3 sit near the
+     query in that order — the picture must not contradict the scores printed beside it.
+     Chunk 4 drifts into the SPEC neighbourhood: it is mostly a mangled table, so that is
+     where it honestly lands. It keeps the manual's colour (colour is provenance) but is
+     indexed under spec (`reg`) — which is exactly what a real index does with a point that
+     is nearest to somebody else's centroid, and it is why the two are separate fields. */
+  const TRACKED = [
+    {x:-0.36,y:-0.20,z: 0.06, k:'manual', ck:1},
+    {x:-0.25,y:-0.08,z: 0.15, k:'manual', ck:2},
+    {x:-0.42,y: 0.06,z: 0.00, k:'manual', ck:3},
+    {x:-0.12,y: 0.46,z:-0.24, k:'manual', ck:4, reg:'spec'}
+  ];
+  TRACKED.forEach(p => pts.push({...p, r:6.4}));
+  Object.keys(COUNTS).forEach(k=>{
+    const c = CENTRES[k];
+    for(let i=0;i<COUNTS[k];i++)
+      pts.push({x:c[0]+g()*0.155, y:c[1]+g()*0.155, z:c[2]+g()*0.155, k, r:4.8});
+  });
+  const regOf = p => p.reg || p.k;
+  /* The query point. Lands near chunks 1 and 2 — which is the entire reason the search stage
+     works, and why the same encoder box has to be visibly reused in stage 7. */
+  const QP = {x:-0.31,y:-0.14,z:0.10, k:'query', r:7.2, hidden:true};
+  pts.push(QP);
+
+  /* Which points belong to which region. A region is not a decoration — it is the set of
+     members, and its drawn circle is DERIVED from where those members actually project. */
+  const MEMBERS = {};
+  Object.keys(COUNTS).forEach(k => MEMBERS[k] = pts.filter(p => p!==QP && regOf(p)===k));
+
+  /* The six signpost similarities, fixed. Manual wins by a clear margin — a picture where the
+     winner is ambiguous teaches the opposite of the lesson. */
+  const SIGN_SIM = { manual:0.71, spec:0.44, notes:0.31, support:0.29, warranty:0.22, email:0.12 };
+  const SCORE    = { 1:0.82, 2:0.74, 3:0.38 };
+  const WINNER   = 'manual';
+
+  const state = {
+    rotY:0.9, tilt:0.42, target:{rotY:0.16, tilt:0.13},
+    reveal:0,          // 0..1 — how many points have flown in
+    dim:0,             // 0..1 — how far non-winners are faded
+    showQuery:false, showHits:false, showRegions:false, showSignposts:false,
+    showFan:false, showDescend:false, showInset:false, winner:null,
+    canvas:null, ctx:null, raf:null, t0:0, reg:null
+  };
+
+  const HITSET = new Set([1,2,3]);   // chunk numbers the query retrieves (see HITS)
+
+  function project(p, W, H){
+    const cy=Math.cos(state.rotY), sy=Math.sin(state.rotY);
+    const ct=Math.cos(state.tilt), st=Math.sin(state.tilt);
+    let x=p.x*cy - p.z*sy, z=p.x*sy + p.z*cy;
+    let y=p.y*ct - z*st;   z=p.y*st + z*ct;
+    const d = 2.6/(2.6+z);
+    return { X: W/2 + x*W*0.40*d, Y: H/2 + y*H*0.62*d, d, z };
+  }
+
+  /* A region's circle, computed from the projected members every frame. The previous version
+     used a hardcoded radius, which meant the circle enclosed its cluster at one rotation and
+     sliced through it at another — exactly the kind of bug that looks fine in a screenshot.
+     Centre = centroid of the projected members, so the signpost is always inside its own
+     region, and the label "the average of everything in here" is literally true. */
+  function regionGeom(k, W, H){
+    const ms = MEMBERS[k].map(p => ({p, pr:project(p,W,H)}));
+    let cx=0, cy=0;
+    ms.forEach(m => { cx += m.pr.X; cy += m.pr.Y; });
+    cx /= ms.length; cy /= ms.length;
+    let rad = 0;
+    ms.forEach(m => {
+      const d = Math.hypot(m.pr.X-cx, m.pr.Y-cy) + m.p.r*m.pr.d*state.dpr;
+      if(d > rad) rad = d;
+    });
+    return { cx, cy, rad: rad + 11*state.dpr, n: ms.length };
+  }
+
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+  }
+  /* Every label on this canvas sits on top of dots and translucent fills, so every label is
+     drawn twice: a fat white stroke first, then the fill. */
+  function label(ctx,txt,x,y,size,col,align,baseline){
+    ctx.font = '600 '+(size*state.dpr)+'px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.textAlign = align||'center'; ctx.textBaseline = baseline||'bottom';
+    ctx.lineJoin='round'; ctx.lineWidth = 3.6*state.dpr; ctx.strokeStyle='rgba(255,255,255,.94)';
+    ctx.strokeText(txt,x,y);
+    ctx.fillStyle = col; ctx.fillText(txt,x,y);
+  }
+
+  function draw(){
+    const {ctx,canvas} = state; if(!ctx) return;
+    const W=canvas.width, H=canvas.height, dpr=state.dpr;
+    ctx.clearRect(0,0,W,H);
+
+    state.reg = {};
+    Object.keys(COUNTS).forEach(k => state.reg[k] = regionGeom(k,W,H));
+
+    const vis = pts.filter(p=>!(p===QP && !state.showQuery));
+    const shown = Math.ceil(vis.length * state.reveal);
+    const drawn = [];
+    for(let i=0;i<vis.length;i++){
+      if(i>=shown && vis[i]!==QP) continue;
+      drawn.push({p:vis[i], pr:project(vis[i], W, H)});
+    }
+    drawn.sort((a,b)=>b.pr.z - a.pr.z);
+
+    if(state.showRegions)   drawRegions(ctx,W,H);
+    if(state.showFan)       drawFan(ctx,W,H);
+    if(state.showDescend)   drawDescend(ctx,W,H);
+    drawPoints(ctx,drawn,dpr);
+    if(state.showSignposts) drawSignposts(ctx,W,H);
+    if(state.showQuery)     drawQuery(ctx,W,H);
+    if(state.showInset)     drawInset(ctx,W,H);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawPoints(ctx,drawn,dpr){
+    drawn.forEach(({p,pr})=>{
+      if(p===QP) return;                       // the query is drawn last, on top of everything
+      const isHit = state.showHits && p.ck && HITSET.has(p.ck);
+      const lost  = state.winner && regOf(p)!==state.winner;
+      let a = 0.30 + 0.70*pr.d;
+      /* Non-winners fade to about a quarter, not to nothing. The space has to stay visibly a
+         space — the point of the hop is that all this still exists and simply wasn't read. */
+      if(lost) a *= (1 - state.dim*0.72);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = isHit ? '#0E9C8B' : COLORS[p.k];
+      const r = p.r * pr.d * dpr;
+      ctx.beginPath(); ctx.arc(pr.X, pr.Y, r, 0, 6.2832); ctx.fill();
+      if(isHit){
+        /* a crisp white collar, not a bloom. The old r*2.7 halo was ~17px of glow on points
+           40-60px apart, so the three hits smeared into one blob. */
+        ctx.globalAlpha=1; ctx.strokeStyle='#FFFFFF'; ctx.lineWidth=1.8*dpr;
+        ctx.beginPath(); ctx.arc(pr.X,pr.Y,r+1.4*dpr,0,6.2832); ctx.stroke();
+        ctx.strokeStyle='#0E9C8B'; ctx.lineWidth=1.2*dpr;
+        ctx.beginPath(); ctx.arc(pr.X,pr.Y,r+3.2*dpr,0,6.2832); ctx.stroke();
+      }
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  /* Stage 6 ph1 — the partition. Filled so a region reads as a place, not as a stray circle. */
+  function drawRegions(ctx,W,H){
+    ctx.save();
+    Object.keys(COUNTS).forEach(k=>{
+      const g=state.reg[k], col=COLORS[k];
+      const won = state.winner===k, lost = state.winner && !won;
+      ctx.beginPath(); ctx.arc(g.cx,g.cy,g.rad,0,6.2832);
+      ctx.globalAlpha = lost ? 0.045 : won ? 0.15 : 0.085;
+      ctx.fillStyle = col; ctx.fill();
+      ctx.globalAlpha = lost ? 0.2 : won ? 1 : 0.6;
+      ctx.strokeStyle = col; ctx.lineWidth = (won?2.4:1.3)*state.dpr;
+      ctx.setLineDash(won ? [] : [5*state.dpr,4*state.dpr]);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  /* Stage 6 ph2 — one signpost per region, visibly not a data point. */
+  function drawSignposts(ctx,W,H){
+    ctx.save();
+    Object.keys(COUNTS).forEach(k=>{
+      const g=state.reg[k], col=COLORS[k];
+      const won = state.winner===k, lost = state.winner && !won;
+      ctx.globalAlpha = lost ? 0.3 : 1;
+      const R = (won?9:7.6)*state.dpr;
+      ctx.beginPath(); ctx.arc(g.cx,g.cy,R,0,6.2832);
+      ctx.fillStyle='#FFFFFF'; ctx.fill();
+      ctx.lineWidth=2.7*state.dpr; ctx.strokeStyle=col; ctx.setLineDash([]); ctx.stroke();
+      ctx.beginPath(); ctx.arc(g.cx,g.cy,2.5*state.dpr,0,6.2832); ctx.fillStyle=col; ctx.fill();
+      /* the label names the REGION, so it goes on the region's top edge — sitting it just
+         above the signpost put it in the middle of the dots it was describing */
+      label(ctx, k+' · '+g.n, g.cx, g.cy - g.rad - 6*state.dpr, 9.5, col, 'center', 'bottom');
+    });
+    ctx.restore();
+  }
+
+  function drawQuery(ctx,W,H){
+    const pr = project(QP,W,H), dpr=state.dpr;
+    const r = QP.r*pr.d*dpr;
+    ctx.save();
+    ctx.globalAlpha=0.16; ctx.fillStyle='#13202B';
+    ctx.beginPath(); ctx.arc(pr.X,pr.Y,r*1.7,0,6.2832); ctx.fill();
+    ctx.globalAlpha=1; ctx.fillStyle='#13202B';
+    ctx.beginPath(); ctx.arc(pr.X,pr.Y,r,0,6.2832); ctx.fill();
+    ctx.strokeStyle='#FFFFFF'; ctx.lineWidth=1.8*dpr;
+    ctx.beginPath(); ctx.arc(pr.X,pr.Y,r+1.6*dpr,0,6.2832); ctx.stroke();
+    ctx.strokeStyle='#13202B'; ctx.lineWidth=1.4*dpr;
+    ctx.beginPath(); ctx.arc(pr.X,pr.Y,r+3.6*dpr,0,6.2832); ctx.stroke();
+    label(ctx,'the question', pr.X, pr.Y - r - 13*dpr, 10, '#13202B');
+    ctx.restore();
+  }
+
+  /* Stage 9 ph2 — six comparisons, drawn. Once a region has won, the five losing lines go:
+     they have served their purpose and they were never the answer. */
+  function drawFan(ctx,W,H){
+    const q = project(QP,W,H), dpr=state.dpr;
+    ctx.save();
+    Object.keys(COUNTS).forEach(k=>{
+      const won = state.winner===k;
+      if(state.winner && !won) return;
+      const g = state.reg[k];
+      ctx.globalAlpha = won ? 0.95 : 0.6;
+      ctx.strokeStyle = won ? '#2F6BFF' : '#8A98A6';
+      ctx.lineWidth = (won?2.4:1.2)*dpr;
+      ctx.setLineDash(won ? [] : [4*dpr,3*dpr]);
+      ctx.beginPath(); ctx.moveTo(q.X,q.Y); ctx.lineTo(g.cx,g.cy); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha=1;
+      /* The winning signpost is by definition almost on top of the query, so its segment is
+         a few pixels long and a midpoint label would land inside the query dot — i.e. the one
+         number the stage is about would be the one number you cannot read. Short segments get
+         their label parked clear of the point instead. */
+      const L = Math.hypot(g.cx-q.X, g.cy-q.Y);
+      const lx = L < 70*dpr ? g.cx + 44*dpr : q.X+(g.cx-q.X)*0.52;
+      const ly = L < 70*dpr ? g.cy + 20*dpr : q.Y+(g.cy-q.Y)*0.52;
+      label(ctx, SIGN_SIM[k].toFixed(2), lx, ly,
+            won?10.5:9, won?'#1A4ED8':'#8A98A6', 'center', 'middle');
+    });
+    ctx.restore();
+  }
+
+  /* Stage 9 ph4 — and only now, inside the winner, the actual distance measurements. */
+  function drawDescend(ctx,W,H){
+    const q = project(QP,W,H), dpr=state.dpr;
+    ctx.save(); ctx.setLineDash([]);
+    MEMBERS[WINNER].forEach(p=>{
+      const pr = project(p,W,H);
+      const hit = p.ck && HITSET.has(p.ck);
+      ctx.globalAlpha = hit ? 0.9 : 0.4;
+      ctx.strokeStyle = hit ? '#0E9C8B' : '#A9B7C4';
+      ctx.lineWidth = (hit?1.9:1)*dpr;
+      ctx.beginPath(); ctx.moveTo(q.X,q.Y); ctx.lineTo(pr.X,pr.Y); ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  /* The magnified callout, and the reason the finished frame reads without narration: at
+     full-canvas scale the query and its three nearest sit inside ~120px and per-point labels
+     are unprintable. The frame is fitted to the QUERY AND ITS HITS rather than to the whole
+     region — framing the region gave a magnification of ×1.0, which is not a magnifier.
+     It takes the right-hand half of the canvas because the winning region is on the left and
+     because at this phase everything else on screen is deliberately a ghost. */
+  function drawInset(ctx,W,H){
+    const dpr = state.dpr;
+    const g   = state.reg[WINNER];
+    const qpr = project(QP,W,H);
+
+    const focus = MEMBERS[WINNER].filter(p=>p.ck && HITSET.has(p.ck))
+                                 .map(p=>project(p,W,H)).concat([qpr]);
+    let fx=0, fy=0; focus.forEach(p=>{ fx+=p.X; fy+=p.Y; });
+    fx/=focus.length; fy/=focus.length;
+    let frad = 0; focus.forEach(p=>{ frad = Math.max(frad, Math.hypot(p.X-fx, p.Y-fy)); });
+    frad += 17*dpr;
+
+    const bw = W*0.40, bh = H*0.80;
+    const bx = W - bw - 13*dpr, by = (H-bh)/2;
+    const k  = Math.min(bw, bh-22*dpr) / (2*frad);
+    const cx = bx + bw/2, cy = by + bh/2 + 9*dpr;
+    const M  = pr => ({X: cx + (pr.X-fx)*k, Y: cy + (pr.Y-fy)*k});
+    const q  = M(qpr);
+
+    ctx.save();
+    roundRect(ctx,bx,by,bw,bh,13*dpr);
+    ctx.fillStyle='rgba(255,255,255,.975)'; ctx.fill();
+    ctx.strokeStyle='#2F6BFF'; ctx.lineWidth=1.7*dpr; ctx.stroke();
+    ctx.clip();
+
+    label(ctx,'inside region  manual  ·  magnified ×'+k.toFixed(1),
+          bx+14*dpr, by+18*dpr, 9.5, '#1A4ED8', 'left', 'middle');
+
+    /* the region boundary, magnified with everything else — it runs off the frame, which is
+       the correct impression: we are standing inside it */
+    ctx.globalAlpha=0.09; ctx.fillStyle='#2F6BFF';
+    ctx.beginPath(); ctx.arc(cx+(g.cx-fx)*k, cy+(g.cy-fy)*k, g.rad*k, 0, 6.2832); ctx.fill();
+    ctx.globalAlpha=0.5; ctx.strokeStyle='#2F6BFF'; ctx.lineWidth=1.4*dpr;
+    ctx.setLineDash([5*dpr,4*dpr]); ctx.stroke(); ctx.setLineDash([]);
+
+    MEMBERS[WINNER].forEach(p=>{
+      const m = M(project(p,W,H));
+      const hit = p.ck && HITSET.has(p.ck);
+      ctx.globalAlpha = hit ? 0.9 : 0.32;
+      ctx.strokeStyle = hit ? '#0E9C8B' : '#A9B7C4'; ctx.lineWidth=(hit?2:1)*dpr;
+      ctx.beginPath(); ctx.moveTo(q.X,q.Y); ctx.lineTo(m.X,m.Y); ctx.stroke();
+      ctx.globalAlpha=1;
+      ctx.fillStyle = hit ? '#0E9C8B' : '#2F6BFF';
+      ctx.beginPath(); ctx.arc(m.X,m.Y,(hit?7:5)*dpr,0,6.2832); ctx.fill();
+      if(hit){
+        ctx.strokeStyle='#FFFFFF'; ctx.lineWidth=2*dpr;
+        ctx.beginPath(); ctx.arc(m.X,m.Y,9*dpr,0,6.2832); ctx.stroke();
+        const right = m.X >= q.X;
+        label(ctx,'chunk '+p.ck+' · '+SCORE[p.ck].toFixed(2),
+              m.X + (right?13:-13)*dpr, m.Y, 10, '#0B7A6D', right?'left':'right','middle');
+      }
+    });
+
+    ctx.globalAlpha=1; ctx.fillStyle='#13202B';
+    ctx.beginPath(); ctx.arc(q.X,q.Y,7.6*dpr,0,6.2832); ctx.fill();
+    ctx.strokeStyle='#FFFFFF'; ctx.lineWidth=2.2*dpr;
+    ctx.beginPath(); ctx.arc(q.X,q.Y,9.6*dpr,0,6.2832); ctx.stroke();
+    /* below the dot: the hit labels own the space to either side of it */
+    label(ctx,'the question', q.X, q.Y + 24*dpr, 10, '#13202B', 'center', 'middle');
+    ctx.restore();
+  }
+
+  function loop(ts){
+    if(!state.t0) state.t0 = ts;
+    const el = (ts - state.t0)/1000;
+    if(state.mode==='fly'){
+      state.reveal = Math.min(1, el/1.5);
+      /* one slow turn as a flourish, then ease into the near-flat rest pose */
+      const spin = Math.max(0, 1 - el/3.2);
+      state.rotY  += (state.target.rotY - state.rotY) * 0.035 + spin*0.012;
+      state.tilt  += (state.target.tilt - state.tilt) * 0.035;
+      if(el>4.2) state.mode='rest';
+    } else {
+      state.rotY += (state.target.rotY - state.rotY)*0.05;
+      state.tilt += (state.target.tilt - state.tilt)*0.05;
+    }
+    draw();
+    /* Stop once there is genuinely nothing left to move. Stages 6 and 9 are static diagrams
+       driven by clicks; leaving a rAF loop repainting an identical frame under a projector
+       for ten minutes is pure heat. */
+    const moving = state.mode!=='rest'
+      || Math.abs(state.rotY-state.target.rotY) > 0.0008
+      || Math.abs(state.tilt-state.target.tilt) > 0.0008;
+    state.raf = moving ? requestAnimationFrame(loop) : null;
+  }
+
+  const BASE = () => ({
+    reveal:1, dim:1, showQuery:false, showHits:false, showRegions:false, showSignposts:false,
+    showFan:false, showDescend:false, showInset:false, winner:null,
+    rotY:0.16, tilt:0.13, mode:'rest'
+  });
+
+  return {
+    /* Attach to a canvas. Sizes for devicePixelRatio so points are round, not fuzzy, on the
+       projector-scaled canvas. */
+    attach(cv){
+      const dpr = Math.min(2, window.devicePixelRatio||1);
+      /* offsetWidth, not getBoundingClientRect — the whole canvas is inside a CSS transform:
+         scale(), and the rect would hand back projector-scaled pixels. */
+      cv.width  = Math.max(320, Math.round(cv.offsetWidth  * dpr));
+      cv.height = Math.max(200, Math.round(cv.offsetHeight * dpr));
+      state.canvas=cv; state.ctx=cv.getContext('2d'); state.dpr=dpr;
+      return this;
+    },
+    detach(){
+      if(state.raf) cancelAnimationFrame(state.raf);
+      if(state.fb) clearTimeout(state.fb);
+      state.raf=null; state.fb=null; state.canvas=null; state.ctx=null;
+    },
+    set(o){ Object.assign(state,o); return this; },
+    /* One entry point per stage, driven by phase — so stages 6 and 9 are steppable diagrams
+       rather than animations whose meaning has already scrolled past by the time anyone reads
+       them. opts = {animate, phase}. */
+    scene(name, opts){
+      opts = opts||{};
+      const phase = opts.phase|0;
+      state.t0 = 0;
+      if(state.raf) cancelAnimationFrame(state.raf);
+      if(state.fb) clearTimeout(state.fb);
+      const base = BASE();
+
+      if(name==='space'){
+        Object.assign(state, base);
+        if(opts.animate) Object.assign(state,{reveal:0, rotY:1.5, tilt:0.5, mode:'fly'});
+      }
+      /* Stage 6 — STRUCTURE. No query, nothing searching: this is the indexing act, and the
+         thing being built is the map a later search will use. */
+      if(name==='index'){
+        Object.assign(state, base, { showRegions:phase>=1, showSignposts:phase>=2 });
+      }
+      /* Stage 9 — TRAVERSAL. The same regions and signposts, now used. */
+      if(name==='search'){
+        Object.assign(state, base, {
+          showRegions:true, showSignposts:true,
+          showQuery:  phase>=1,
+          showFan:    phase>=2,
+          winner:     phase>=3 ? WINNER : null,
+          showDescend:phase>=4,
+          showHits:   phase>=4,
+          showInset:  phase>=4
+        });
+      }
+      draw();
+      if(!REDUCE) state.raf = requestAnimationFrame(loop);
+      /* Chrome throttles requestAnimationFrame to ZERO in a background tab. A presenter who
+         opens this file, alt-tabs away and comes back would otherwise land on a blank canvas
+         with no way to know why. This backstop paints the finished cloud regardless — timers
+         are only clamped in the background, not stopped. Only the fly-in needs it; every
+         other scene is already complete the moment scene() returns. */
+      if(name==='space' && opts.animate && !REDUCE){
+        state.fb = setTimeout(()=>{
+          Object.assign(state, BASE()); draw();
+        }, 5000);
+      }
+      return this;
+    },
+    /* Same reason: returning to the tab repaints rather than waiting for the next frame. */
+    repaint(){ draw(); },
+    colors: COLORS,
+    /* exposed for the enclosure check in the console, and for nothing else */
+    _debug: { pts, MEMBERS, project, regionGeom, state }
+  };
+})();
+
+/* ==========================================================================================
+   SMALL BUILDERS shared across stages
+   ========================================================================================== */
+const el = (tag, cls, html) => { const e=document.createElement(tag); if(cls)e.className=cls;
+  if(html!=null)e.innerHTML=html; return e; };
+const sn = (k, extra) => '<span class="sn sn-'+k+(extra?' '+extra:'')+'" data-sn="'+k+'">'+S[k]+'</span>';
+
+/* The printed page. Built once here and reused by stages 1, 2 and 11 so the audience is
+   looking at the same object each time — which is the only reason the citation trace in
+   stage 11 means anything. */
+function buildPage(){
+  const p = el('div','page');
+  p.innerHTML =
+    '<div class="pg-mast"><span>Aeronote — User Manual</span><span class="r">Ch. 2 · The display</span></div>'+
+    '<div class="pg-h2"><i>2.3</i>The reading surface</div>'+
+    '<div class="pg-fig"><svg viewBox="0 0 104 38" aria-hidden="true">'+
+      '<rect x="13" y="2" width="62" height="34" rx="3.5" fill="#FFFFFF" stroke="#2F6BFF" stroke-width="1.4"/>'+
+      '<rect x="17" y="6" width="54" height="26" rx="1.5" fill="#DBF3EF" stroke="#8FCFC6" stroke-width=".7"/>'+
+      '<rect x="21" y="10" width="30" height="2" rx="1" fill="#0E9C8B"/>'+
+      '<rect x="21" y="15" width="44" height="2" rx="1" fill="#8FCFC6"/>'+
+      '<rect x="21" y="20" width="38" height="2" rx="1" fill="#8FCFC6"/>'+
+      '<rect x="21" y="25" width="26" height="2" rx="1" fill="#B9E1DB"/>'+
+      /* the stylus, and the ambient light the whole section is about */
+      '<rect x="79" y="6" width="3.4" height="26" rx="1.7" fill="#2F6BFF"/>'+
+      '<path d="M92 9 L98 12 M92 19 L99 19 M92 29 L98 26" stroke="#2F6BFF" stroke-width="1.3" stroke-linecap="round" fill="none"/>'+
+    '</svg></div>'+
+    '<div class="pg-figcap">fig. 2.1 — the reading surface</div>'+
+    '<div class="pg-cols">'+
+      '<div class="pg-col">'+ COL_A.map(k=>'<span>'+sn(k)+'</span>').join('') +'</div>'+
+      '<div class="pg-col">'+ COL_B.map(k=>'<span>'+sn(k)+'</span>').join('') +
+        '<table class="pg-tbl">'+
+          '<thead><tr><th>Specification</th><th>Value</th></tr></thead>'+
+          '<tbody>'+
+            '<tr><td>Screen</td><td>10.3 in e-ink</td></tr>'+
+            '<tr><td>Weight</td><td>375 g</td></tr>'+
+            '<tr><td>Charge</td><td>3 weeks</td></tr>'+
+          '</tbody>'+
+        '</table>'+
+      '</div>'+
+    '</div>'+
+    '<div class="pg-foot"><span>Aeronote Ltd · confidential</span><span class="fn">17</span></div>';
+  return p;
+}
+
+/* The flat text stream that survives parsing. Same sentences, same data-sn hooks, no layout. */
+function buildStream(cls, noLabel){
+  const order = ['s1','s2a','s2b','s3','s4','s5','s6a','s6b'];
+  const box = el('div', cls||'stream');
+  box.innerHTML = (noLabel ? '' : '<span class="lbl">plain text</span>') +
+    order.map(k=>sn(k)).join(' ') + ' ' +
+    '<span class="sn tbl" data-sn="tbl">'+S.tbl+'</span>';
+  return box;
+}
+
+function chunkBody(c){
+  return c.parts.map(k=>{
+    if(k==='tbl') return '<span class="tblfrag" data-sn="tbl">'+S.tbl+'</span>';
+    const isOv = c.ovl===k;
+    return '<span class="sn'+(isOv?' ov':'')+'" data-sn="'+k+'">'+S[k]+'</span>';
+  }).join(' ');
+}
+
+/* ==========================================================================================
+   THE THIRTEEN STAGES
+   `phases` is how many reveals the stage has. → advances one of them; run() walks them on
+   timers; finish() jumps to the last. Because _paint(ph) is a pure function of the phase,
+   every stage is a complete, finished diagram at its last phase with motion switched off —
+   that is the acceptance test, and it is what makes stepping and autoplay the same thing.
+   ========================================================================================== */
+const STAGES = [
+
+/* ---------------------------------------------------------------- 1 · THE CORPUS -------- */
+{
+  id:'corpus', act:'idx', node:0, phases:3,
+  title:'It starts as paper.',
+  cap:'Before any of this is a vector, it is a filing cabinet. Manuals, policies, a warranty, an email thread — <b>the things your company actually knows</b>, sitting in formats nobody designed for a machine to read.',
+  ov:'Six real documents. We open one.',
+  build(){
+    const r = el('div','st');
+
+    /* Establishing shot. An SVG paper-stack sits underneath; the <img> above it deletes
+       itself if the file is absent, so this stage is finished whether or not the raster
+       was ever generated. */
+    /* The establishing shot. The <img> above this removes itself if img/07-paperwork.png was
+       never generated, so what is drawn here has to stand on its own — it is the first frame
+       of the film, not a placeholder. Three piles: loose sheets, a stack of bound manuals,
+       one cobalt ring binder as the single saturated object. */
+    const sheet = (x,y,w,h,rot,fill,lines) => {
+      let s = '<g transform="rotate('+rot+' '+(x+w/2)+' '+(y+h/2)+')">'+
+        '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="2" fill="'+fill+'" stroke="#C3CFDA" stroke-width="1.2"/>';
+      for(let i=0;i<lines;i++){
+        const lw = w*(0.62 - (i%3)*0.14);
+        s += '<rect x="'+(x+11)+'" y="'+(y+9+i*9)+'" width="'+lw+'" height="3" rx="1.5" fill="'+(i?'#DDE4EB':'#C3CFDA')+'"/>';
+      }
+      return s+'</g>';
+    };
+    const shot = el('div','s1-shot');
+    shot.innerHTML =
+      '<svg viewBox="0 0 1000 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'+
+        '<rect width="1000" height="400" fill="#E9EDF1"/>'+
+        /* loose sheets, fanned, left */
+        sheet(64,236,236,120,-7,'#FFFFFF',7)+ sheet(96,214,232,118,-2.5,'#F8FAFC',7)+
+        sheet(130,196,228,116,2,'#FFFFFF',6)+ sheet(168,182,222,112,6.5,'#F3F6F9',6)+
+        /* bound manuals, stacked, centre — seen edge-on */
+        '<g transform="rotate(-2 520 300)">'+
+          [0,1,2,3].map(i=>'<rect x="'+(392+i*5)+'" y="'+(316-i*19)+'" width="'+(268-i*10)+'" height="17" rx="2.5" '+
+            'fill="'+(i%2?'#FFFFFF':'#ECF0F5')+'" stroke="#C3CFDA" stroke-width="1.2"/>'+
+            '<rect x="'+(392+i*5)+'" y="'+(316-i*19)+'" width="7" height="17" fill="#D6DEE6"/>').join('')+
+        '</g>'+
+        /* the one cobalt ring binder, standing, right */
+        '<g transform="rotate(3 742 254)">'+
+          '<rect x="640" y="150" width="204" height="208" rx="5" fill="#2F6BFF"/>'+
+          '<rect x="640" y="150" width="26" height="208" fill="#1A4ED8"/>'+
+          '<rect x="649" y="188" width="8" height="26" rx="4" fill="#8FB4FF" opacity=".7"/>'+
+          '<rect x="649" y="236" width="8" height="26" rx="4" fill="#8FB4FF" opacity=".7"/>'+
+          '<rect x="649" y="284" width="8" height="26" rx="4" fill="#8FB4FF" opacity=".7"/>'+
+        '</g>'+
+        /* a folder spilling pages, far right */
+        sheet(820,212,164,96,-9,'#FFFFFF',6)+ sheet(836,240,160,92,-3,'#F8FAFC',5)+
+        '<path d="M812 356 L812 246 Q812 238 822 238 L882 238 L894 250 L960 250 Q968 250 968 258 L968 356 Z" '+
+          'fill="#DDE4EB" stroke="#C3CFDA" stroke-width="1.2"/>'+
+      '</svg>'+
+      '<img src="'+IMAGES.paperwork+'" alt="" onerror="this.remove()">';
+    const over = el('div','s1-over');
+    over.innerHTML = '<div class="k">the corpus</div><p>Everything the company knows,<br>and none of it in a database.</p>';
+    shot.appendChild(over);
+    r.appendChild(shot);
+
+    /* The shelf: six live document cards. */
+    const shelf = el('div','s1-shelf');
+    DOCS.forEach((d,i)=>{
+      const c = el('div','doccard'); c.style.transitionDelay = (i*55)+'ms';
+      c.style.borderTopColor = 'var('+d.c+')'; c.style.borderTopWidth='3px';
+      const mini = el('div','docmini');
+      /* the same masthead the opened page has, in this document's own colour — so phase 2
+         reads as "we opened THAT card", not as a cut to a different document */
+      let bars = '<div class="mbar" style="background:var('+d.c+')">'+
+                 '<b style="width:'+(d.t.length>22?34:26)+'px"></b><b style="width:9px"></b></div>'+
+                 '<i class="h"></i>';
+      for(let j=0;j<8;j++) bars += '<i class="'+(j%4===3?'s':'')+'"></i>';
+      if(d.tbl) bars += '<div class="tbl"><u></u><div class="tb"><i></i><i></i><i></i></div></div>';
+      mini.innerHTML = bars;
+      c.appendChild(mini);
+      c.appendChild(el('div','doctitle', d.t));
+      c.appendChild(el('div','docmeta', d.m));
+      shelf.appendChild(c);
+    });
+    r.appendChild(shelf);
+
+    /* One of them, opened. */
+    const zoom = el('div','s1-zoom');
+    const note = el('div','s1-note');
+    note.innerHTML =
+      '<span class="pill cobalt">document 1 of 6</span>'+
+      '<h4 style="margin-top:11px">Aeronote — User Manual, page 17</h4>'+
+      '<p>Here is what a real source document is: <b>two columns</b>, a running header, a page number, a figure with a caption, and <b>a specification table</b>.</p>'+
+      '<p>Every one of those things is layout. It helps a human read and it means nothing to a model. Watch what happens to it next.</p>'+
+      '<div class="note cobalt" style="margin-top:16px"><b>Four sentences to keep an eye on.</b> They are on this page now. By the end of the film you will have watched them cut apart, turned into numbers, retrieved, pasted into a prompt, and traced back here.</div>';
+    zoom.appendChild(note);
+    zoom.appendChild(buildPage());
+    r.appendChild(zoom);
+
+    r._paint = ph=>{
+      shot.style.opacity   = ph===0 ? 1 : 0;
+      shot.style.transform = ph===0 ? 'none' : 'scale(1.04)';
+      shelf.style.opacity  = ph===1 ? 1 : 0;
+      r.querySelectorAll('.doccard').forEach(c=>{
+        c.style.opacity   = ph>=1 ? 1 : 0;
+        c.style.transform = ph>=1 ? 'none' : 'translateY(14px)';
+      });
+      if(ph===2){ zoom.style.opacity=1; } else { zoom.style.opacity=0; }
+      /* the shelf must not sit under the opened page */
+      shelf.style.pointerEvents = ph===1 ? 'auto':'none';
+    };
+    return r;
+  }
+},
+
+/* ---------------------------------------------------------------- 2 · PARSE ★ ----------- */
+{
+  id:'parse', act:'idx', node:0, phases:6,
+  title:'Everything that made it readable, <em>gone</em>.',
+  cap:'Parsing is the step every tutorial skips in one word. It is where the columns, the header, the page number and <b>the table</b> stop existing — and where the first bugs in a RAG system are quietly born.',
+  ov:'A page becomes one flat run of text, one casualty per click. The table dies last.',
+  build(){
+    const r = el('div','st s2');
+    const left = el('div','s2-left');
+    const page = buildPage(); left.appendChild(page);
+
+    /* One click per casualty. The table is last on purpose: it is the payoff of the stage,
+       not a middle beat, and a presenter needs to be standing on it when it goes. */
+    const mid = el('div','s2-mid');
+    const arrow = el('div','s2-arrow','→');
+    mid.appendChild(arrow);
+    mid.appendChild(el('div','ml','thrown away'));
+    [['running','header',1],['page','number',2],['figure +','caption',3],
+     ['two-column','layout',4],['the table\'s','structure',5,'bad']]
+      .forEach(([a,b,p,cls])=>{
+        const d = el('div','disc'+(cls?' '+cls:''), a+'<br>'+b);
+        d.dataset.p = p;
+        mid.appendChild(d);
+      });
+
+    const right = el('div','s2-right');
+    const stream = buildStream();
+    const bad = el('div','note coral');
+    bad.innerHTML = '<b>Look at the end of that stream.</b> The specification table has become a run-on sentence: <em>Screen 10.3 in Weight 375 g Charge 3 weeks</em>. Nothing now says which number belongs to which label — and no later stage can put it back.';
+    right.appendChild(stream); right.appendChild(bad);
+    r.appendChild(left); r.appendChild(mid); r.appendChild(right);
+
+    const mast = page.querySelector('.pg-mast'), h2 = page.querySelector('.pg-h2');
+    const foot = page.querySelector('.pg-foot');
+    const fig  = page.querySelector('.pg-fig'),  figcap = page.querySelector('.pg-figcap');
+    const tbl  = page.querySelector('.pg-tbl');
+    const cols = page.querySelectorAll('.pg-col');
+    const lift = (n, gone) => { if(!n) return;
+      n.style.opacity = gone ? 0 : 1;
+      n.style.transform = gone ? 'translateY(-16px)' : 'none'; };
+
+    r._paint = ph=>{
+      /* ph0 the page as printed · ph1 masthead + heading · ph2 folio · ph3 figure + caption
+         · ph4 the columns merge and the flat stream fills · ph5 the table collapses */
+      lift(mast, ph>=1); lift(h2, ph>=1);
+      lift(foot, ph>=2);
+      lift(fig,  ph>=3); if(figcap) figcap.style.opacity = ph>=3 ? 0 : 1;
+
+      page.querySelectorAll('.pg-col>span').forEach(s=>{ s.style.opacity = ph>=4 ? .3 : 1; });
+      if(cols[1]) cols[1].style.transform = ph>=4 ? 'translateX(-10px)' : 'none';
+
+      /* the table holds full strength through the column merge — it is the only thing left
+         standing on the page at ph4, which is what makes ph5 land */
+      tbl.style.opacity   = ph>=5 ? .2 : 1;
+      tbl.style.transform = ph>=5 ? 'scale(.93)' : 'none';
+
+      r.querySelectorAll('.disc').forEach(d=>d.classList.toggle('in', ph >= +d.dataset.p));
+      mid.querySelector('.ml').style.opacity = ph>=1 ? 1 : 0;
+
+      stream.querySelectorAll('.sn').forEach((s,i)=>{
+        const isTbl = s.classList.contains('tbl');
+        s.classList.toggle('in', isTbl ? ph>=5 : ph>=4);
+        s.style.transitionDelay = (!isTbl && ph>=4) ? (i*70)+'ms' : '0ms';
+      });
+      arrow.style.opacity = ph>=4 ? 1 : .3;
+      bad.style.opacity   = ph>=5 ? 1 : 0;
+      bad.style.transition= 'opacity .5s var(--ease)';
+    };
+    return r;
+  }
+},
+
+/* ---------------------------------------------------------------- 3 · CHUNK ------------- */
+{
+  id:'chunk', act:'idx', node:1, phases:4,
+  title:'Now cut it into pieces.',
+  cap:'The chunk is the unit you retrieve — not the document, not the sentence. <b>The piece</b>. Watch where the blade lands, and watch the same words end up in two neighbours at once.',
+  ov:'One stream, four chunks, one visible overlap and one bad cut.',
+  build(){
+    const r = el('div','st s3');
+    const streamWrap = el('div','s3-stream');
+    streamWrap.innerHTML = buildStream('x', true).innerHTML;
+    streamWrap.querySelectorAll('.sn').forEach(s=>s.classList.add('in'));
+    const blade = el('div','blade'); streamWrap.appendChild(blade);
+    r.appendChild(streamWrap);
+
+    const cards = el('div','s3-cards');
+    CHUNKS.forEach((c,i)=>{
+      const k = el('div','ck'); k.style.transitionDelay=(i*130)+'ms';
+      k.innerHTML =
+        '<div class="ckh"><span class="ckn">chunk '+c.n+'</span><span class="cks">'+c.chars+' chars</span></div>'+
+        '<div class="ckb">'+chunkBody(c)+'</div>';
+      cards.appendChild(k);
+    });
+    r.appendChild(cards);
+
+    const foot = el('div','s3-foot');
+    const dial = el('div','dial');
+    dial.innerHTML = '<span class="dl">chunk size</span>'+
+      '<span class="dtrack"><span class="dthumb"></span></span><span class="dv">240</span>';
+    const foothint = el('div','note cobalt');
+    foothint.style.flex='1';
+    foothint.innerHTML = '<b>That dial is tab 02\'s to play with, not ours.</b> Two things to notice for now: <span style="background:var(--amber-soft);padding:1px 4px;border-radius:3px">the amber words</span> appear in chunk 1 <em>and</em> chunk 2 — that is overlap, bought on purpose — and chunk 1 ends mid-sentence, which is the cost of cutting by length.';
+    foot.appendChild(dial); foot.appendChild(foothint);
+    r.appendChild(foot);
+
+    r._paint = ph=>{
+      /* ph0: intact stream.  ph1: the blade sweeps.  ph2: chunks land.  ph3: overlap named. */
+      blade.style.opacity = ph===1 ? 1 : 0;
+      blade.style.transition = ph===1 ? 'top 1.1s linear, opacity .3s' : 'opacity .3s';
+      blade.style.top = ph>=1 ? '104%' : '-4px';
+      if(ph===0) blade.style.top='-4px';
+      streamWrap.style.opacity = ph>=2 ? .38 : 1;
+      r.querySelectorAll('.ck').forEach(k=>{
+        k.style.opacity   = ph>=2 ? 1 : 0;
+        k.style.transform = ph>=2 ? 'none' : 'translateY(18px) scale(.97)';
+      });
+      r.querySelectorAll('.ck .ov').forEach(o=>{
+        o.style.background = ph>=3 ? 'var(--amber-soft)' : 'transparent';
+        o.style.boxShadow  = ph>=3 ? '0 0 0 1px var(--amber-soft)' : 'none';
+        o.style.color      = ph>=3 ? '#7a4d05' : '#2b3a47';
+      });
+      foot.style.opacity = ph>=3 ? 1 : 0;
+      foot.style.transition = 'opacity .45s var(--ease)';
+    };
+    return r;
+  }
+},
+
+/* ---------------------------------------------------------------- 4 · EMBED ------------- */
+{
+  id:'embed', act:'idx', node:2, phases:5,
+  title:'A chunk goes in. A list of numbers comes out.',
+  cap:'The step people call magic, with the lid off: text in one end, <b>a fixed-length list of numbers</b> out the other. Those numbers are the only thing the rest of the pipeline ever sees.',
+  ov:'Chunk 1 → twelve numbers → a colour strip → one point.',
+  build(){
+    const r = el('div','st s4');
+
+    const c1 = el('div','s4-col');
+    const ck = el('div','s4-chunk');
+    ck.innerHTML = '<span class="ckn">chunk 1</span>'+ chunkBody(CHUNKS[0]);
+    c1.appendChild(ck); c1.appendChild(el('div','s4-cap','text'));
+
+    const a1 = el('div','s4-arrow','→');
+
+    const c2 = el('div','s4-col');
+    const enc = el('div','encoder');
+    enc.innerHTML = '<span class="ring"></span><span class="en"><b>embedding<br>model</b>text-embedding-3</span>';
+    c2.appendChild(enc); c2.appendChild(el('div','s4-cap','the encoder'));
+
+    const a2 = el('div','s4-arrow','→');
+
+    const c3 = el('div','s4-col');
+    const vec = el('div','vec');
+    const NUMS = ['0.021','−0.184','0.377','0.052','−0.291','0.408','0.113','−0.066','0.245','0.190','−0.332','0.074'];
+    vec.innerHTML = NUMS.map((n,i)=>'<span><i>'+String(i+1).padStart(2,'0')+'</i>'+n+'</span>').join('');
+    const heat = el('div','heat');
+    heat.innerHTML = NUMS.map(n=>{
+      const v = parseFloat(n.replace('−','-'));
+      const t = Math.min(1, Math.abs(v)/0.42);
+      const col = v>=0 ? '47,107,255' : '217,133,24';
+      return '<b style="background:rgba('+col+','+(0.16+t*0.84).toFixed(2)+')"></b>';
+    }).join('');
+    const dot = el('div','dot1','<i></i>');
+    c3.appendChild(vec); c3.appendChild(heat); c3.appendChild(dot);
+    c3.appendChild(el('div','s4-cap','the embedding'));
+
+    const row = el('div','s4-row');
+    row.appendChild(c1); row.appendChild(a1); row.appendChild(c2); row.appendChild(a2); row.appendChild(c3);
+    r.appendChild(row);
+
+    const foot = el('div','note s4-foot');
+    foot.innerHTML = '<b>We are showing you twelve numbers. The real one has 1,536.</b> That is the only lie in this stage — the rest is exactly what happens. Same text in always gives the same numbers out, which is what makes it worth storing them.';
+    r.appendChild(foot);
+
+    r._paint = ph=>{
+      /* ph0 chunk · ph1 into the encoder · ph2 numbers · ph3 colour strip · ph4 a point */
+      a1.classList.toggle('on', ph>=1);
+      enc.classList.toggle('hot', ph>=1 && ph<3);
+      a2.classList.toggle('on', ph>=2);
+      /* fade the source while it is "inside" the encoder, then bring it back — the finished
+         stage has to show all three representations side by side and readable */
+      ck.style.opacity = (ph>=1 && ph<4) ? .45 : 1;
+      ck.style.transition='opacity .4s var(--ease)';
+      const spans = vec.querySelectorAll('span');
+      spans.forEach((s,i)=>{
+        s.classList.toggle('in', ph>=2);
+        s.style.transitionDelay = ph>=2 ? (i*55)+'ms' : '0ms';
+      });
+      heat.style.opacity   = ph>=3 ? 1 : 0;
+      heat.style.transform = ph>=3 ? 'none' : 'scaleY(.4)';
+      dot.style.opacity    = ph>=4 ? 1 : 0;
+      foot.style.opacity   = ph>=4 ? 1 : 0;
+      foot.style.transition='opacity .5s var(--ease)';
+    };
+    return r;
+  }
+},
+
+/* ---------------------------------------------------------------- 5 · THE SPACE --------- */
+{
+  id:'space', act:'idx', node:3, phases:2, cloud:'space',
+  title:'Do that to everything. You get a <em>space</em>.',
+  cap:'Every chunk of every document, one point each. Position is decided by meaning, so things that mean similar things land near each other — <b>without anyone writing a rule that says so</b>.',
+  ov:'Fifty chunks fly in and settle. Colour = source document.',
+  build(){
+    const r = el('div','st cloudwrap');
+    const box = el('div','cloudbox');
+    const cv  = el('canvas'); box.appendChild(cv);
+    const a1 = el('div','annot');
+    a1.style.cssText='left:16%;top:38%';
+    /* Not "the four chunks" — three of them are here and the fourth is the lone cobalt dot
+       sitting in the middle of the teal cluster. That is not a glitch to explain away, it is
+       this stage's own caption proving itself: chunk 4 is mostly a mangled table, so it lands
+       near the spec sheet rather than near the rest of its own page. */
+    a1.innerHTML = '<b>the chunks from page 17</b><span class="m">one drifted — it is mostly a table</span>';
+    box.appendChild(a1);
+    r.appendChild(box);
+
+    const side = el('div','cloudside');
+    side.appendChild(el('h4','', 'One dot per chunk'));
+    const leg = el('div','legend');
+    leg.innerHTML = DOCS.map(d=>'<span><i style="background:var('+d.c+')"></i>'+d.s+'</span>').join('');
+    side.appendChild(leg);
+    const n = el('div','card');
+    n.style.cssText='padding:13px 14px;margin-top:4px';
+    n.innerHTML = '<div class="bignum" style="font-size:26px;color:var(--cobalt-ink)">1,536</div>'+
+      '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;line-height:1.45">dimensions, flattened to three so you can see it. The distances are the honest part; the picture is a cartoon.</div>';
+    side.appendChild(n);
+    const n2 = el('div','note cobalt');
+    n2.innerHTML = '<b>Nothing has been searched yet.</b> This is just the library, shelved. Tab 01 is where you get to click around inside it.';
+    side.appendChild(n2);
+    r.appendChild(side);
+
+    r._cv = cv; r._annot = a1;
+    r._paint = ph=>{ a1.classList.toggle('in', ph>=1); };
+    return r;
+  }
+},
+
+/* ---------------------------------------------------------------- 6 · INDEX ------------- */
+{
+  id:'index', act:'idx', node:3, phases:4, cloud:'index', cloudPhased:true,
+  title:'And then you carve it up.',
+  cap:'A real corpus is millions of points, and comparing a question against every one of them is not an option. So the space gets divided into neighbourhoods ahead of time, with <b>one signpost in the middle of each</b>. Nothing is being searched yet — this is the map a search will use.',
+  ov:'The space is partitioned into six regions; each gets one signpost.',
+  build(){
+    const r = el('div','st cloudwrap');
+    const box = el('div','cloudbox');
+    const cv  = el('canvas'); box.appendChild(cv);
+    r.appendChild(box);
+
+    const side = el('div','cloudside');
+    side.appendChild(el('h4','','This is the vector store'));
+
+    /* A filled blob with a ringed marker in the middle of it is decoration until something
+       says what the two shapes ARE. This legend is that something, and it arrives one row at
+       a time alongside the thing it names. */
+    const lg = el('div','card'); lg.style.cssText='padding:12px 13px';
+    lg.innerHTML =
+      '<div class="glg" data-p="0"><span class="gi dot"></span><div><b>a chunk</b> — one dot, one piece of one document</div></div>'+
+      '<div class="glg" data-p="1"><span class="gi blob"></span><div><b>a region</b> — a neighbourhood of the space, decided once, in advance</div></div>'+
+      '<div class="glg" data-p="2"><span class="gi ring"></span><div><b>a signpost</b> — the average of everything inside its region</div></div>';
+    side.appendChild(lg);
+
+    const big = el('div','card'); big.style.cssText='padding:13px 14px';
+    big.innerHTML =
+      '<div style="font-size:11.4px;color:var(--ink-soft);line-height:1.45">A search will compare against <b>6 signposts</b>, then only the chunks inside the one that wins — not all 50. Same trade, at real scale:</div>'+
+      '<div class="bignum" style="font-size:25px;letter-spacing:-.03em;margin:7px 0 0"><span style="color:var(--ink-faint);text-decoration:line-through">10,000,000</span></div>'+
+      '<div class="bignum" style="font-size:25px;letter-spacing:-.03em;color:var(--cobalt-ink)">~200</div>'+
+      '<div style="font-size:11.4px;color:var(--ink-soft);margin-top:5px;line-height:1.45">vectors touched. You give up a little recall and buy back an enormous amount of speed — that is the <b>approximate</b> in approximate nearest neighbour.</div>';
+    side.appendChild(big);
+    r.appendChild(side);
+    /* No "this all runs once" note here — stage 7 is an entire stage about exactly that, and
+       the sidebar has no room for it without pushing the last line under the bottom rail. */
+
+    r._cv = cv;
+    r._paint = ph=>{
+      /* ph0 the settled cloud · ph1 regions · ph2 signposts · ph3 what it buys you */
+      lg.querySelectorAll('.glg').forEach(g=>{ g.style.opacity = ph >= +g.dataset.p ? 1 : 0; });
+      big.style.opacity = ph>=3 ? 1 : 0; big.style.transition='opacity .5s var(--ease)';
+    };
+    return r;
+  }
+},
+
+/* ---------------------------------------------------------------- 7 · THE SEAM ---------- */
+{
+  id:'seam', act:'map', node:-1, phases:3,
+  title:'Two clocks.',
+  cap:'This is the detail almost everyone misses on the first pass, and it is worth stopping on. <b>The two halves of RAG do not run at the same time, or at the same speed, or on the same trigger.</b>',
+  ov:'Indexing runs once, overnight. Query runs while someone waits.',
+  build(){
+    const r = el('div','st seamwrap');
+    const a = el('div','seamrow idx');
+    a.innerHTML =
+      '<div class="clockface" style="--h:-90deg;--m:150deg"></div>'+
+      '<div class="seamtxt"><div class="k">everything above this line</div>'+
+      '<h4>Indexing</h4><p>Runs once, ahead of time. Runs again when a document changes. Nobody is watching it happen.</p></div>'+
+      '<div class="seamtime"><div class="big">~40 min</div><div class="sm">for this corpus</div></div>';
+    const div = el('div','seamdiv');
+    div.innerHTML = '<hr><span>the seam</span><hr>';
+    const b = el('div','seamrow qry');
+    b.innerHTML =
+      '<div class="clockface" style="--h:-84deg;--m:-78deg"></div>'+
+      '<div class="seamtxt"><div class="k">everything below it</div>'+
+      '<h4>Query</h4><p>Runs on every single question, with a person sitting there watching a cursor blink. Every millisecond in here is a millisecond they feel.</p></div>'+
+      '<div class="seamtime"><div class="big">~300 ms</div><div class="sm">per question</div></div>';
+    r.appendChild(a); r.appendChild(div); r.appendChild(b);
+    r._paint = ph=>{
+      a.classList.toggle('in', ph>=0);
+      div.classList.toggle('in', ph>=1);
+      b.classList.toggle('in', ph>=2);
+    };
+    return r;
+  }
+},
+
+/* ---------------------------------------------------------------- 8 · THE QUESTION ------ */
+{
+  id:'ask', act:'qry', node:4, phases:3,
+  title:'Someone asks something.',
+  cap:'The move the whole thing balances on: the question goes into <b>the same encoder box you just watched</b>. Not a similar one — the same one. Otherwise question and chunks land in unrelated spaces.',
+  ov:'The question is embedded by the identical model.',
+  build(){
+    const r = el('div','st s7');
+
+    const ask = el('div','asker');
+    const bub = el('div','bubble');
+    bub.innerHTML = '<span class="txt"></span><span class="car"></span>';
+    ask.appendChild(el('div','s4-cap','a person, typing'));
+    ask.appendChild(bub);
+    const a1 = el('div','s4-arrow','→');
+
+    const mid = el('div','s4-col'); mid.style.position='relative';
+    const enc = el('div','encoder');
+    enc.innerHTML = '<span class="ring"></span><span class="en"><b>embedding<br>model</b>text-embedding-3</span>';
+    mid.appendChild(enc); mid.appendChild(el('div','s4-cap','the encoder'));
+    const same = el('div','s7-same');
+    same.innerHTML = '<span class="pill cobalt">the same box as stage 4</span>';
+    mid.appendChild(same);
+
+    const a2 = el('div','s4-arrow','→');
+
+    const out = el('div','s4-col');
+    const vec2 = el('div','vec'); vec2.style.width='176px';
+    const N2 = ['0.034','−0.171','0.362','0.061','−0.277','0.399','0.108','−0.058','0.238','0.184','−0.320','0.081'];
+    vec2.innerHTML = N2.map((n,i)=>'<span><i>'+String(i+1).padStart(2,'0')+'</i>'+n+'</span>').join('');
+    const dot = el('div','dot1'); dot.style.width='176px';
+    dot.innerHTML = '<i style="background:#13202B;box-shadow:0 0 0 7px #DCE3EA,0 6px 16px rgba(19,32,43,.3)"></i>';
+    out.appendChild(vec2); out.appendChild(dot);
+    out.appendChild(el('div','s4-cap','the query vector'));
+
+    const row = el('div','s4-row');
+    row.appendChild(ask); row.appendChild(a1); row.appendChild(mid); row.appendChild(a2); row.appendChild(out);
+    r.appendChild(row);
+
+    const foot = el('div','note cobalt s4-foot');
+    foot.innerHTML = '<b>Compare the two lists of numbers.</b> Stage 4 started <em>0.021, −0.184, 0.377</em>. This one starts <em>0.034, −0.171, 0.362</em>. Close, but not equal — and "how close" is about to be the entire search algorithm.';
+    r.appendChild(foot);
+
+    r._typeTarget = bub;
+    r._paint = ph=>{
+      const txt = bub.querySelector('.txt');
+      if(ph===0){ txt.textContent=''; bub.classList.remove('done'); }
+      if(ph>=1){ txt.textContent=QUESTION; bub.classList.add('done'); }
+      a1.classList.toggle('on', ph>=1);
+      enc.classList.toggle('hot', ph>=1 && ph<2);
+      a2.classList.toggle('on', ph>=2);
+      same.classList.toggle('in', ph>=1);
+      vec2.querySelectorAll('span').forEach((s,i)=>{
+        s.classList.toggle('in', ph>=2); s.style.transitionDelay = ph>=2 ? (i*40)+'ms':'0ms';
+      });
+      dot.style.opacity  = ph>=2 ? 1 : 0;
+      foot.style.opacity = ph>=2 ? 1 : 0;
+      foot.style.transition='opacity .5s var(--ease)';
+    };
+    return r;
+  }
+},
+
+/* ---------------------------------------------------------------- 9 · SEARCH ------------ */
+{
+  id:'search', act:'qry', node:6, phases:5, cloud:'search', cloudPhased:true,
+  title:'Drop it in and see what it lands next to.',
+  cap:'The question is now a point in the same space as everything else. It checks the <b>six signposts</b> from the last stage, one region wins — and only then does it measure distance to the chunks inside that one.',
+  ov:'Query lands · six signposts compared · one region wins · three chunks kept.',
+  build(){
+    const r = el('div','st cloudwrap');
+    const box = el('div','cloudbox');
+    const cv = el('canvas'); box.appendChild(cv);
+    /* bottom-left: the query point projects to roughly 37% across, 41% down, and the
+       magnified inset owns the bottom-right corner */
+    const a = el('div','annot'); a.style.cssText='left:3%;top:62%;max-width:236px';
+    a.innerHTML = '<b>the question</b><span class="m">"'+QUESTION+'"</span>';
+    box.appendChild(a);
+    r.appendChild(box);
+
+    const side = el('div','cloudside s9c');
+
+    /* The canvas shows the hop happening. This says what happened — which is what lets the
+       finished frame survive being read cold, with no motion and nobody narrating. */
+    const steps = el('div','card'); steps.style.cssText='padding:12px 13px';
+    steps.innerHTML =
+      '<div class="sstep" data-p="2"><b>1</b><div>Compare against the <b>6 signposts</b>. '+
+        '<span class="win">manual · 0.71</span> wins; the other five are never opened.</div></div>'+
+      '<div class="sstep" data-p="4"><b>2</b><div>Now measure distance inside that one region — '+
+        '<b>9 chunks, not 50</b>. Keep the nearest three.</div></div>';
+    side.appendChild(steps);
+
+    const cos = el('div','cosbox');
+    cos.innerHTML = '<h5>what "near" means</h5>'+
+      '<svg viewBox="0 0 210 56" style="width:100%;height:auto;display:block">'+
+      '<path d="M18 48 L150 8" stroke="#13202B" stroke-width="2" fill="none"/>'+
+      '<circle cx="150" cy="8" r="3.4" fill="#13202B"/>'+
+      '<path d="M18 48 L166 24" stroke="#0E9C8B" stroke-width="2" fill="none"/>'+
+      '<circle cx="166" cy="24" r="3.4" fill="#0E9C8B"/>'+
+      '<path d="M18 48 L124 47" stroke="#C9D3DD" stroke-width="2" fill="none"/>'+
+      '<circle cx="124" cy="47" r="3.4" fill="#C9D3DD"/>'+
+      '<path d="M54 41 A38 38 0 0 1 50 30" stroke="#8A98A6" stroke-width="1.2" fill="none"/>'+
+      '<text x="61" y="32" font-family="IBM Plex Mono,monospace" font-size="9" fill="#516070">θ</text>'+
+      '</svg>'+
+      '<div style="font-size:11.2px;color:var(--ink-soft);line-height:1.4;margin-top:5px">Not the distance between the dots — <b>the angle between the arrows</b>. That is cosine similarity, and it is the whole formula.</div>';
+    side.appendChild(cos);
+
+    const hits = el('div','hits');
+    HITS.forEach((h,i)=>{
+      const row = el('div','hitrow'+(i<2?' best':''));
+      row.style.transitionDelay=(i*130)+'ms';
+      row.innerHTML = '<div><div class="ht">'+h.tag+'</div>chunk '+h.n+'</div><div class="hv">'+h.score.toFixed(2)+'</div>';
+      hits.appendChild(row);
+    });
+    const hcap = el('div','s4-cap','top 3 · what gets kept');
+    side.appendChild(hcap);
+    side.appendChild(hits);
+    r.appendChild(side);
+
+    r._cv = cv;
+    r._paint = ph=>{
+      /* ph0 the indexed space · ph1 the query lands · ph2 six comparisons · ph3 one wins
+         · ph4 descend into it and keep three */
+      a.classList.toggle('in', ph>=1);
+      r.querySelectorAll('.sstep').forEach(s=>{ s.style.opacity = ph >= +s.dataset.p ? 1 : 0; });
+      cos.style.opacity = ph>=2 ? 1 : 0;
+      cos.style.transition = 'opacity .45s var(--ease)';
+      hcap.style.opacity = ph>=4 ? 1 : 0;
+      hcap.style.transition = 'opacity .45s var(--ease)';
+      r.querySelectorAll('.hitrow').forEach(h=>h.classList.toggle('in', ph>=4));
+    };
+    return r;
+  }
+},
+
+/* ---------------------------------------------------------------- 10 · THE PROMPT ★ ----- */
+{
+  id:'prompt', act:'qry', node:8, phases:6,
+  title:'And now the part nobody shows you.',
+  cap:'No clever handover, no special channel into the model. <b>The retrieved chunks get pasted into the prompt as text</b>, above the question, and the whole thing is sent as one message. That is the entire trick.',
+  ov:'★ The prompt assembles itself, line by line, chunks pasted in verbatim.',
+  build(){
+    const r = el('div','st s9');
+    const row = el('div','s9-row');
+
+    const src = el('div','s9-src');
+    src.appendChild(el('div','s4-cap','retrieved · 3 chunks'));
+    HITS.forEach(h=>{
+      const c = CHUNKS[h.n-1];
+      const b = el('div','srcck');
+      b.dataset.ck = h.n;
+      b.innerHTML = '<div class="h"><span>chunk '+h.n+'</span><span>'+h.score.toFixed(2)+'</span></div>'+
+        chunkText(c).slice(0,120)+'…';
+      src.appendChild(b);
+    });
+    row.appendChild(src);
+
+    const p = el('div','s9-prompt');
+    const lines = [
+      {c:'sys',  t:'You are a support assistant. Answer using only the'},
+      {c:'sys',  t:'context below. If it is not in the context, say so.'},
+      {c:'sp',   t:''},
+      {c:'tag',  t:'&lt;context&gt;'},
+      {ck:1}, {ck:2}, {ck:3},
+      {c:'tag',  t:'&lt;/context&gt;'},
+      {c:'sp',   t:''},
+      {c:'q',    t:'Question: '+QUESTION}
+    ];
+    let html = '<span class="plbl">the actual prompt</span>';
+    lines.forEach(l=>{
+      if(l.ck){
+        const c = CHUNKS[l.ck-1];
+        html += '<span class="pl chunk" data-ck="'+l.ck+'"><span class="cn">chunk '+l.ck+' — aeronote manual p17</span>'+
+          chunkText(c)+'</span>';
+      /* No <br>: .s9-prompt is a column flex container, so each <br> would become its own
+         anonymous flex item and double the leading. That overflow clipped the question line —
+         the one line the whole stage is building toward. */
+      } else if(l.c==='sp'){ html += '<span class="pl sp"></span>'; }
+      else { html += '<span class="pl '+l.c+'">'+l.t+'</span>'; }
+    });
+    p.innerHTML = html;
+    row.appendChild(p);
+    r.appendChild(row);
+
+    const punch = el('div','s9-punch note cobalt');
+    punch.innerHTML = '<b>Read the box on the left, then read the box on the right.</b> They contain the same words. Nothing was summarised, compressed or transformed on the way in — the chunks were <em>copied</em>. The model is about to read your document for the simple reason that you put your document in front of it.';
+    r.appendChild(punch);
+
+    const pls = () => p.querySelectorAll('.pl');
+    r._paint = ph=>{
+      /* ph0 empty · ph1 system · ph2-4 the three chunks arrive · ph5 the question + punchline */
+      const arr = [...pls()];
+      arr.forEach(n=>n.classList.remove('in'));
+      if(ph>=1) arr.filter(n=>n.classList.contains('sys')||n.classList.contains('sp')).forEach(n=>n.classList.add('in'));
+      if(ph>=1) arr.filter(n=>n.classList.contains('tag')).forEach(n=>n.classList.add('in'));
+      [1,2,3].forEach(i=>{
+        const on = ph >= 1+i;
+        const node = p.querySelector('.pl.chunk[data-ck="'+i+'"]');
+        if(node) node.classList.toggle('in', on);
+        const s = src.querySelector('.srcck[data-ck="'+i+'"]');
+        if(s) s.classList.toggle('sent', on);
+      });
+      if(ph>=5) arr.filter(n=>n.classList.contains('q')).forEach(n=>n.classList.add('in'));
+      punch.style.opacity = ph>=5 ? 1 : 0;
+    };
+    return r;
+  }
+},
+
+/* ---------------------------------------------------------------- 11 · GENERATE --------- */
+{
+  id:'generate', act:'qry', node:9, phases:3,
+  title:'The model reads it and writes.',
+  cap:'From here it is an ordinary language model doing an ordinary thing. The difference is not the model — <b>the difference is what was on the desk when it started.</b>',
+  ov:'The assembled prompt goes in; a grounded answer comes out.',
+  build(){
+    const r = el('div','st s10');
+
+    const pv = el('div','s10-prompt');
+    pv.innerHTML = '<span class="pl sys">You are a support assistant. Answer using only<br>the context below.</span><br>'+
+      '<span class="pl tag">&lt;context&gt;</span>'+
+      CHUNKS.slice(0,3).map((c,i)=>'<span class="pl chunk"><span class="cn">chunk '+(i+1)+'</span>'+chunkText(c).slice(0,150)+'…</span>').join('')+
+      '<span class="pl tag">&lt;/context&gt;</span><br><span class="pl q">Question: '+QUESTION+'</span>';
+    r.appendChild(pv);
+
+    const m = el('div','model');
+    const mb = el('div','modelbox','Claude');
+    m.appendChild(mb); m.appendChild(el('div','s4-cap','generation'));
+    r.appendChild(m);
+
+    const a = el('div','s10-ans');
+    a.appendChild(el('div','al','the answer'));
+    const ans = el('div','answer');
+    a.appendChild(ans);
+    const nt = el('div','note');
+    nt.style.marginTop='10px';
+    nt.innerHTML = '<b>Three chunks went in. Two came back out as citations.</b> Chunk 3 was retrieved, paid for, sent, read — and not used. Every RAG system does this on every question, and measuring how much of it is happening is what tab 08 is for.';
+    a.appendChild(nt);
+    r.appendChild(a);
+
+    r._ansEl = ans;
+    r._paint = ph=>{
+      mb.classList.toggle('hot', ph>=1);
+      pv.style.opacity = ph>=1 ? .55 : 1;
+      if(ph<2){ ans.innerHTML = ph>=1 ? '<span class="car2"></span>' : ''; }
+      else { ans.innerHTML = renderAnswer(); }
+      nt.style.opacity = ph>=2 ? 1 : 0;
+      nt.style.transition='opacity .5s var(--ease)';
+    };
+    return r;
+  }
+},
+
+/* ---------------------------------------------------------------- 12 · CITE ------------- */
+{
+  id:'cite', act:'qry', node:10, phases:3,
+  title:'And you can walk it all the way back.',
+  cap:'Every claim has a return path: <b>chip → chunk → the page it was printed on.</b> That path is the only reason to trust the answer, and a model on its own can never give it to you.',
+  ov:'Each citation traced back to the printed page it came from.',
+  build(){
+    const r = el('div','st s11');
+
+    const cA = el('div','s11-col s11-ans');
+    cA.appendChild(el('div','s11-lbl','the answer'));
+    const ab = el('div','s11-ansbox'); ab.innerHTML = renderAnswer();
+    cA.appendChild(ab);
+
+    const cB = el('div','s11-col s11-ck');
+    cB.appendChild(el('div','s11-lbl','the chunk it cited'));
+    const ckb = el('div','s11-ckbox');
+    cB.appendChild(ckb);
+
+    const cD = el('div','s11-col s11-pg');
+    cD.appendChild(el('div','s11-lbl','the page it was printed on'));
+    const pg = buildPage(); pg.style.flex='1';
+    cD.appendChild(pg);
+
+    r.appendChild(cA); r.appendChild(cB); r.appendChild(cD);
+
+    const CITE_SRC = { 1:CHUNKS[0], 2:CHUNKS[1] };
+    r._paint = ph=>{
+      /* ph1 → citation 1, ph2 → citation 2 AND citation 1 still lit. The final phase has to be
+         the whole picture, not the last frame of a slideshow — a presenter who jumps to the end
+         or runs with motion off should see both traces at once. */
+      r.querySelectorAll('.cite').forEach(c=>c.classList.toggle('lit', ph>0 && +c.dataset.c<=ph));
+      r.querySelectorAll('.sn').forEach(s=>s.classList.remove('lit'));
+      ckb.classList.toggle('lit', ph>0);
+      if(ph===0){ ckb.innerHTML='<div class="h">— </div><span style="color:var(--ink-faint)">step forward to follow a citation home</span>'; return; }
+      const c = CITE_SRC[ph];
+      ckb.innerHTML = '<div class="h">chunk '+c.n+'</div>'+chunkBody(c);
+      /* light the same sentences in all four columns at once — that simultaneity is the point */
+      const parts = ph===2 ? [...CITE_SRC[1].parts, ...CITE_SRC[2].parts] : CITE_SRC[1].parts;
+      [...new Set(parts)].filter(k=>k!=='tbl').forEach(k=>{
+        r.querySelectorAll('.sn[data-sn="'+k+'"]').forEach(s=>s.classList.add('lit'));
+      });
+    };
+    return r;
+  }
+},
+
+/* ---------------------------------------------------------------- 13 · THE MAP ---------- */
+{
+  id:'map', act:'map', node:-1, phases:4,
+  title:'That was eleven boxes.',
+  cap:'Here they are, flattened back into the diagram waiting for you in the lab. <b>Every tab from here on is a zoom-in on one of these.</b>',
+  ov:'Everything collapses into the lab\'s tab-00 map. The door out.',
+  build(){
+    const r = el('div','st s12');
+    const A = [['Documents','pdf · html · md','stages 1–2'],['Chunk','split text','stage 3'],
+               ['Embed','→ vectors','stage 4'],['Vector store','index','stages 5–6']];
+    const B = [['Question','user query','stage 8'],['Embed','same model','stage 8'],
+               ['Search','nearest chunks','stage 9'],['Top-k','context','stage 9'],
+               ['+ Prompt','assemble','stage 10'],['LLM','generate','stage 11'],
+               ['Answer','+ citations','stage 12']];
+    function lane(arr, cls){
+      const l = el('div','lane '+cls);
+      arr.forEach((n,i)=>{
+        const d = el('div','nd');
+        d.innerHTML = '<div class="nlab">'+n[0]+'</div><div class="nsub">'+n[1]+'</div><div class="nst">'+n[2]+'</div>';
+        l.appendChild(d);
+        if(i<arr.length-1) l.appendChild(el('div','ar','→'));
+      });
+      return l;
+    }
+    r.appendChild(el('div','lanebar idx','Offline · indexing (runs once, ahead of time)'));
+    const la = lane(A,'idx'); r.appendChild(la);
+    r.appendChild(el('div','lanebar qry','Online · query time (runs on every question)'));
+    const lb = lane(B,'qry'); r.appendChild(lb);
+
+    const cta = el('div','s12-cta');
+    cta.innerHTML = '<a class="ctabtn" href="rag-lab.html">Open the lab →</a>'+
+      '<span style="font-size:13px;color:var(--ink-soft);max-width:66ch">Tab 00 has this same map, and it stays there for the rest of the session — it is what you come back to when you need to remember where you are. The film you just watched, you only watch once.</span>';
+    r.appendChild(cta);
+
+    const nds = () => r.querySelectorAll('.nd');
+    r._paint = ph=>{
+      const all=[...nds()], ars=[...r.querySelectorAll('.ar')];
+      all.forEach((n,i)=>{
+        const on = ph>=1 && (ph>=2 || i<4);
+        n.classList.toggle('in', on);
+        n.classList.toggle('showst', ph>=3);
+        n.style.transitionDelay = (i*45)+'ms';
+      });
+      ars.forEach((a,i)=>a.classList.toggle('in', ph>=1 && (ph>=2 || i<3)));
+      cta.classList.toggle('in', ph>=3);
+    };
+    return r;
+  }
+}
+];
+
+/* Renders the grounded answer with its citation chips. Used by stages 11 and 12 — the same
+   markup in both, so the chips the room sees appear a second time in exactly the same shape. */
+function renderAnswer(){
+  return ANSWER.map(p=>{
+    if(p.cite) return '<span class="cite" data-c="'+p.cite+'">['+p.cite+']</span>';
+    if(p.hl)   return '<span class="sn" data-sn="'+(p.hl===1?'s1':'s2b')+'">'+p.t+'</span>';
+    return p.t;
+  }).join('');
+}
+
+/* ==========================================================================================
+   THE SHELL — scaling, navigation, phases, autoplay
+   ========================================================================================== */
+const CV     = document.getElementById('cv');
+const BODY   = document.getElementById('body');
+const MINI   = document.getElementById('minimap');
+const TICKS  = document.getElementById('ticks');
+const PIPS   = document.getElementById('pips');
+const OVL    = document.getElementById('ovl');
+const HELP   = document.getElementById('help');
+const N      = STAGES.length;
+
+/* The lab's own eleven nodes, shrunk. */
+const NODE_NAMES = ['Documents','Chunk','Embed','Vector store','Question','Embed','Search',
+                    'Top-k','+ Prompt','LLM','Answer'];
+NODE_NAMES.forEach((_,i)=>{
+  const m = el('span','mm'+(i<4?' a':''));
+  MINI.appendChild(m);
+  if(i===3) MINI.appendChild(el('span','mm-gap'));
+});
+const MMLAB = el('span','mm-lab',''); MINI.appendChild(MMLAB);
+
+STAGES.forEach((s,i)=>{
+  const t = el('div','tk'); t.dataset.i=i;
+  t.title = (i+1)+' · '+s.title.replace(/<[^>]+>/g,'');
+  t.addEventListener('click',()=>go(i));
+  TICKS.appendChild(t);
+  if(s.id==='seam') TICKS.appendChild(el('div','tk seam'));
+});
+
+/* Overview. Every card shows its stage finished — there is nothing to wait for. */
+document.getElementById('ovGrid').innerHTML = STAGES.map((s,i)=>
+  '<div class="ovc '+(s.act==='qry'?'q':s.act==='map'?'m':'')+'" data-i="'+i+'">'+
+  '<div class="n">'+String(i+1).padStart(2,'0')+' · '+(s.act==='idx'?'indexing':s.act==='qry'?'query':'both')+'</div>'+
+  '<div class="t">'+s.title.replace(/<\/?em>/g,'')+'</div>'+
+  '<div class="d">'+s.ov+'</div><div class="bar"></div></div>').join('');
+document.getElementById('ovGrid').addEventListener('click',e=>{
+  /* {end:true} — the card above literally promises "every stage is shown finished". The
+     overview is a navigation device, not a delivery device; the rail ticks are the ones that
+     drop you at phase 0 ready to build. */
+  const c=e.target.closest('.ovc'); if(!c) return; OVL.classList.remove('on'); go(+c.dataset.i,{end:true});
+});
+document.querySelector('#ovl h2').textContent = 'All '+N+' stages';
+
+let cur = -1, ph = 0, node = null, timers = [], auto = false, cloudPainted = false;
+
+/* One cancel path for both timeouts and the two typewriter intervals. Everything scheduled by
+   a stage goes in here, so leaving a stage can never leave something running behind it. */
+function clearTimers(){
+  timers.forEach(t=>{ if(t && t.__iv!==undefined) clearInterval(t.__iv); else clearTimeout(t); });
+  timers = [];
+}
+function at(ms, fn){ timers.push(setTimeout(fn, ms)); }
+function every(ms, fn){ const h={__iv:setInterval(fn,ms)}; timers.push(h); return h; }
+
+function paintChrome(){
+  const s = STAGES[cur];
+  document.getElementById('actPill').className = 'actpill '+s.act;
+  document.getElementById('actPill').textContent =
+    s.act==='idx' ? 'indexing · runs once' : s.act==='qry' ? 'query time · every question' : 'both clocks';
+  document.getElementById('stNum').textContent = String(cur+1).padStart(2,'0')+' / '+N;
+  document.getElementById('stTitle').innerHTML = s.title;
+  document.getElementById('stCap').innerHTML   = s.cap;
+
+  [...MINI.querySelectorAll('.mm')].forEach((m,i)=>{
+    m.classList.toggle('on',   i===s.node);
+    m.classList.toggle('past', s.node>=0 && i<s.node);
+  });
+  MMLAB.textContent = s.node>=0 ? NODE_NAMES[s.node] : (s.id==='map' ? 'all eleven' : '—');
+
+  [...TICKS.querySelectorAll('.tk:not(.seam)')].forEach((t,i)=>{
+    t.classList.toggle('on', i===cur); t.classList.toggle('done', i<cur);
+  });
+  [...document.querySelectorAll('.ovc')].forEach((c,i)=>c.classList.toggle('on', i===cur));
+}
+
+function setPhase(p, instant){
+  ph = Math.max(0, Math.min(STAGES[cur].phases-1, p));
+  if(instant && node){
+    node.style.transition='none';
+    node.querySelectorAll('*').forEach(n=>n.style.transition='none');
+  }
+  if(node && node._paint) node._paint(ph);
+  if(instant && node){
+    void node.offsetHeight;               /* flush, then hand the transitions back */
+    node.style.transition='';
+    node.querySelectorAll('*').forEach(n=>n.style.transition='');
+  }
+}
+
+/* Phase pips. The one piece of feedback the step-a-phase model can't do without: a presenter
+   who walks onto the next stage with two reveals still unspent has to be able to see it. */
+function paintPips(){
+  const s = STAGES[cur];
+  PIPS.innerHTML = Array.from({length:s.phases},(_,i)=>
+    '<i class="'+(i<ph?'done':i===ph?'on':'')+'"></i>').join('');
+}
+
+/* The two flourishes CSS can't express are bound to their PHASE, not to an entry timer, so
+   they fire identically whether the phase arrived by click or by autoplay. */
+function emitPhase(p){
+  const s = STAGES[cur];
+  if(s.id==='ask'      && p===1 && node._typeTarget) typeQuestion(node._typeTarget);
+  if(s.id==='generate' && p===2 && node._ansEl)      typeAnswer(node._ansEl);
+}
+
+/* The single place a phase becomes visible. setPhase paints the DOM; the cloud stages then
+   redraw their canvas for that same phase — which is what turns stages 6 and 9 from
+   animations into steppable diagrams. */
+function applyPhase(p, o){
+  o = o||{};
+  setPhase(p, o.instant);
+  const s = STAGES[cur];
+  /* Stage 5's cloud is an ARRIVAL, not a build: its phases change the annotation, not the
+     canvas. Re-scening it on every phase would cancel the fly-in a second into it. So the
+     canvas is redrawn only when the stage actually maps phases onto it (6 and 9), when this
+     call is the one starting the animation, or when nothing has painted it yet — that last
+     case is what makes a jump straight to a finished cloud stage work. */
+  if(s.cloud && (s.cloudPhased || o.animate || !cloudPainted)){
+    Cloud.scene(s.cloud, {animate:!!o.animate, phase:ph});
+    cloudPainted = true;
+  }
+  paintPips();
+  if(!o.silent) emitPhase(ph);
+}
+
+/* Jump straight to the finished diagram. Every stage is complete at its last phase, so this
+   is what the overview, End, ← and reduced motion all use. No typing, no timers. */
+function finish(){
+  const s = STAGES[cur];
+  applyPhase(s.phases-1, {instant:true, silent:true});
+  if(s.id==='generate' && node._ansEl) node._ansEl.innerHTML = renderAnswer();
+  if(s.id==='ask' && node._typeTarget){
+    node._typeTarget.querySelector('.txt').textContent = QUESTION;
+    node._typeTarget.classList.add('done');
+  }
+}
+
+/* Enter a stage at phase 0 and arm nothing. This is what a forward step now does, so the
+   presenter owns every reveal. The one exception is the cloud fly-in: it is an arrival, not
+   a build, and there is nothing to step through while it happens. */
+function enter(){
+  const s = STAGES[cur];
+  if(REDUCE){ finish(); return; }
+  applyPhase(0, {instant:true, animate: s.id==='space', silent:true});
+}
+
+/* Walk the phases on timers — autoplay, and R. */
+function run(){
+  clearTimers();
+  const s = STAGES[cur];
+  if(REDUCE){ finish(); return; }
+  applyPhase(0, {instant:true, animate:true, silent:true});
+  const gap = gapFor(s);
+  for(let p=1; p<s.phases; p++) at(p*gap, ()=>applyPhase(p));
+  if(auto) at((s.phases-1)*gap + holdFor(s), ()=>{ if(auto) next(); });
+}
+
+/* One reveal forward or back; off the end of a stage, the neighbouring stage. Going back
+   lands on the previous stage FINISHED — nobody steps backwards to watch a build again. */
+function step(d){
+  auto = false; clearTimers();
+  const s = STAGES[cur], t = ph + d;
+  if(t < 0){ if(cur>0) go(cur-1,{end:true}); return; }
+  if(t > s.phases-1){ if(cur<N-1) go(cur+1); return; }
+  applyPhase(t);
+}
+
+function gapFor(s){
+  if(s.id==='prompt') return 900;
+  if(s.id==='parse')  return 1150;
+  if(s.id==='ask')    return 1500;
+  if(s.id==='index' || s.id==='search') return 1250;
+  return 1000;
+}
+
+/* How long to let a finished stage breathe before autoplay moves on. The two ★ stages get
+   noticeably longer because they are the only things in the session that cover this ground. */
+function holdFor(s){
+  if(s.id==='parse' || s.id==='prompt') return 5200;
+  if(s.id==='cite'  || s.id==='seam')   return 4200;
+  return 2800;
+}
+
+function typeQuestion(bub){
+  const txt = bub.querySelector('.txt');
+  txt.textContent=''; bub.classList.remove('done');
+  let i=0;
+  const h = every(38, ()=>{
+    i++; txt.textContent = QUESTION.slice(0,i);
+    if(i>=QUESTION.length){ clearInterval(h.__iv); bub.classList.add('done'); }
+  });
+}
+
+/* Type the plain text, then swap in the marked-up version once it lands — the same trick the
+   lab uses at rag-lab.html:807, so the citation chips appear as chips rather than as literal
+   square brackets being typed out. Called AFTER the phase has painted the finished answer,
+   never on the same tick from a separate timer — that ordering is what stops the payoff line
+   flashing and vanishing. */
+function typeAnswer(host){
+  const html = renderAnswer();
+  const plain = html.replace(/<[^>]+>/g,'');
+  let i=0; host.innerHTML='<span class="car2"></span>';
+  const h = every(16, ()=>{
+    i++; host.innerHTML = plain.slice(0,i)+'<span class="car2"></span>';
+    if(i>=plain.length){ clearInterval(h.__iv); host.innerHTML = html; }
+  });
+}
+
+function go(i, opts){
+  i = Math.max(0, Math.min(N-1, i));
+  const same = i===cur;
+  clearTimers();
+  if(!same){
+    if(node){ Cloud.detach(); node.remove(); node=null; }
+    cur = i;
+    const s = STAGES[cur];
+    node = s.build();
+    BODY.appendChild(node);
+    cloudPainted = false;
+    if(s.cloud && node._cv){ Cloud.attach(node._cv); }
+  }
+  paintChrome();
+  const o = opts||{};
+  /* {end} — the overview, End and ← all want the finished diagram, because the overview
+     promises "every stage is shown finished" and phase-0 entry would make that a lie. */
+  if(o.end) finish();
+  else if(o.run || auto) run();
+  else enter();
+}
+
+function next(){
+  if(cur >= N-1){ auto=false; return; }
+  go(cur+1);
+}
+
+/* ---------- keys ---------- */
+document.addEventListener('keydown', e=>{
+  const k = e.key;
+  if(HELP.classList.contains('on') && k!=='?'){ HELP.classList.remove('on'); if(k==='Escape') return; }
+  /* → is one reveal, everywhere. A key that sometimes steps and sometimes jumps is worse for
+     a presenter than either pure model, and this is the fragment model the deck already uses. */
+  if(k==='ArrowRight' || k===' ' || k==='PageDown'){ e.preventDefault(); step(1); return; }
+  if(k==='ArrowLeft'  || k==='PageUp'){ e.preventDefault(); step(-1); return; }
+  if(k==='Home'){ auto=false; go(0); return; }
+  if(k==='End'){  auto=false; go(N-1,{end:true}); return; }
+  if(k==='r'||k==='R'){ auto=false; run(); return; }
+  if(k==='a'||k==='A'){ auto=!auto; if(auto) run(); else clearTimers(); return; }
+  if(k==='o'||k==='O'){ auto=false; OVL.classList.toggle('on'); return; }
+  if(k==='b'||k==='B'){ CV.classList.toggle('blank'); return; }
+  if(k==='?'||k==='/'){ HELP.classList.toggle('on'); return; }
+  if(k==='f'||k==='F'){
+    if(document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(()=>{});
+    return; }
+  if(k==='Escape'){
+    if(OVL.classList.contains('on')){ OVL.classList.remove('on'); return; }
+    if(CV.classList.contains('blank')){ CV.classList.remove('blank'); return; }
+    /* Escape is what everyone presses to leave fullscreen. Without this guard, F then Escape
+       walks the presenter straight out of the film and into the lab, mid-session, on a
+       projector. Leaving is the LAST thing Escape does. */
+    if(document.fullscreenElement){ document.exitFullscreen(); return; }
+    window.location.href='rag-lab.html'; return; }
+});
+CV.addEventListener('click', e=>{
+  if(e.target.closest('a,.tk,.ovc,#ovl,#help')) return;
+  step(1);
+});
+
+/* ---------- fixed-canvas scaling ---------- */
+function fit(){
+  const s = Math.min(window.innerWidth/1280, window.innerHeight/720);
+  CV.style.transform = 'scale('+s+')';
+}
+/* Coming back to a backgrounded tab: rAF was throttled to nothing while away, so repaint the
+   cloud at rest rather than leaving a blank box until the next interaction. */
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState!=='visible') return;
+  const s = STAGES[cur];
+  if(s && s.cloud && node && node._cv){ Cloud.attach(node._cv); Cloud.scene(s.cloud,{animate:false,phase:ph}); }
+});
+
+window.addEventListener('resize', ()=>{
+  fit();
+  /* the cloud canvas is sized in device pixels, so it has to be re-measured on a resize */
+  if(node && node._cv){ Cloud.attach(node._cv); const s=STAGES[cur];
+    if(s.cloud) Cloud.scene(s.cloud,{animate:false,phase:ph}); }
+});
+fit();
+go(0);
+</script>
+</body>
+</html>

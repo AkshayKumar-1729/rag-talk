@@ -1,0 +1,2 @@
+Serve this repo verbatim. There is no build step and nothing to template — the deck, the film and
+the lab are three self-contained HTML files that must reach the browser exactly as committed.

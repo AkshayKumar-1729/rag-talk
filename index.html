@@ -1,0 +1,215 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The RAG Talk — retrieval-augmented generation, taught three ways</title>
+<meta name="description" content="A deck, a film, and a hands-on lab explaining how AI systems look things up before they answer. Runs offline in the browser — no install, no key, no network.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+
+<!-- Same non-blocking font load as the three artifacts. This page is often opened from a venue
+     network or from a downloaded copy with no network at all; it must paint immediately and let
+     the webfonts arrive whenever they arrive, or never. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+
+<style>
+/* Tokens lifted verbatim from rag-deck.html, so the landing page and the three artifacts it
+   opens read as one object rather than a wrapper bolted on afterwards. Light only, on purpose:
+   all three destinations are hard light, and a dark shell handing off to them would jar. */
+:root{
+  --bg:#E9EDF1; --surface:#FFFFFF; --surface-2:#F3F6F9;
+  --ink:#13202B; --ink-soft:#516070; --ink-faint:#8A98A6; --line:#D6DEE6; --line-2:#E4EAF0;
+  --cobalt:#2F6BFF; --cobalt-ink:#1A4ED8; --cobalt-soft:#E4ECFF;
+  --amber:#D98518; --amber-ink:#9A5A00; --amber-soft:#FBEEDA;
+  --teal:#0E9C8B; --teal-ink:#0A7A6D; --teal-soft:#DBF3EF;
+  --coral:#E5484D; --coral-soft:#FBE3E4;
+  --violet:#7A5AF8; --violet-ink:#5B3FD4; --violet-soft:#ECE7FF;
+  --shadow:0 1px 2px rgba(19,32,43,.06),0 8px 24px rgba(19,32,43,.06);
+  --shadow-lift:0 2px 4px rgba(19,32,43,.07),0 16px 40px rgba(19,32,43,.10);
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --disp:"Space Grotesk",system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--disp);
+  line-height:1.55;-webkit-font-smoothing:antialiased;
+  /* the one thing that must never happen on a phone */ overflow-x:hidden}
+
+.wrap{max-width:880px;margin:0 auto;padding:clamp(38px,7vw,76px) clamp(20px,5vw,32px) 64px}
+
+/* ── masthead ─────────────────────────────────────────────────────────── */
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--cobalt-ink);font-weight:600;margin:0 0 14px}
+h1{font-size:clamp(34px,6.6vw,58px);line-height:1.06;font-weight:700;letter-spacing:-.025em;margin:0}
+h1 .beam{color:var(--cobalt)}
+.lede{font-size:clamp(17px,2.3vw,21px);color:var(--ink-soft);margin:22px 0 0;max-width:56ch}
+.lede b{color:var(--ink);font-weight:600}
+
+.rule{height:1px;background:var(--line);border:0;margin:clamp(34px,6vw,52px) 0}
+
+/* ── the three doors ──────────────────────────────────────────────────── */
+h2{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-faint);font-weight:600;margin:0 0 18px}
+
+.cards{display:grid;gap:16px}
+.card{display:grid;grid-template-columns:auto 1fr;gap:clamp(16px,3vw,26px);align-items:start;
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:clamp(20px,3.4vw,28px);text-decoration:none;color:inherit;box-shadow:var(--shadow);
+  transition:box-shadow .2s ease,transform .2s ease,border-color .2s ease}
+.card:hover,.card:focus-visible{box-shadow:var(--shadow-lift);transform:translateY(-2px);
+  border-color:var(--accent);outline:none}
+.card:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.num{font-family:var(--mono);font-size:clamp(26px,4.6vw,38px);font-weight:600;line-height:1;
+  color:var(--accent);padding-top:2px;font-variant-numeric:tabular-nums}
+.card h3{font-size:clamp(21px,3.2vw,27px);font-weight:700;letter-spacing:-.015em;margin:0;
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:10px}
+.file{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--ink-faint)}
+.card p{margin:9px 0 0;color:var(--ink-soft);font-size:clamp(15px,2vw,17px);max-width:52ch}
+.card p b{color:var(--ink);font-weight:600}
+.meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+.pill{font-family:var(--mono);font-size:11.5px;font-weight:500;padding:4px 10px;border-radius:999px;
+  background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--line-2)}
+.pill.on{background:var(--tint);color:var(--accent-ink);border-color:transparent;font-weight:600}
+
+.c1{--accent:var(--cobalt);--accent-ink:var(--cobalt-ink);--tint:var(--cobalt-soft)}
+.c2{--accent:var(--violet);--accent-ink:var(--violet-ink);--tint:var(--violet-soft)}
+.c3{--accent:var(--teal);  --accent-ink:var(--teal-ink);  --tint:var(--teal-soft)}
+
+/* ── the reading ──────────────────────────────────────────────────────── */
+.reads{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+.read{display:block;background:var(--surface);border:1px solid var(--line);border-radius:11px;
+  padding:17px 19px;text-decoration:none;color:inherit;transition:border-color .2s ease,box-shadow .2s ease}
+.read:hover,.read:focus-visible{border-color:var(--cobalt);box-shadow:var(--shadow);outline:none}
+.read:focus-visible{outline:2px solid var(--cobalt);outline-offset:3px}
+.read .t{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--cobalt-ink)}
+.read .d{font-size:14.5px;color:var(--ink-soft);margin-top:5px}
+.reads-note{font-size:13.5px;color:var(--ink-faint);margin:12px 0 0}
+
+/* ── footer ───────────────────────────────────────────────────────────── */
+.note{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--amber);
+  border-radius:11px;padding:18px 20px;font-size:15px;color:var(--ink-soft);margin:0 0 12px}
+.note b{color:var(--ink);font-weight:600}
+.note.cobalt{border-left-color:var(--cobalt)}
+.note code{font-family:var(--mono);font-size:.9em;background:var(--surface-2);
+  padding:1px 5px;border-radius:4px;color:var(--ink)}
+footer{margin-top:clamp(34px,6vw,52px);font-size:14px;color:var(--ink-faint)}
+footer a{color:var(--ink-soft)}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (max-width:430px){
+  .card{grid-template-columns:1fr;gap:10px}
+  .num{padding-top:0}
+}
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">retrieval-augmented generation</p>
+  <h1>Why AI makes things up —<br><span class="beam">and how RAG quietly fixes it.</span></h1>
+  <p class="lede">A language model answers from memory, so it sounds right even when it's wrong.
+    RAG lets it <b>look things up first</b>. Here's that idea told three ways: a talk, a slow-motion
+    walkthrough of the machinery, and a lab you can type your own questions into.</p>
+  <p class="lede" style="font-size:16px;margin-top:16px">Everything below runs in your browser.
+    <b>No install, no sign-up, no API key, and no network</b> once the page has loaded.</p>
+
+  <hr class="rule">
+
+  <h2>Start here — in order</h2>
+  <div class="cards">
+
+    <a class="card c1" href="rag-deck.html">
+      <span class="num">01</span>
+      <span>
+        <h3>The deck <span class="file">rag-deck.html</span></h3>
+        <p>Sixteen slides for someone who has never heard of any of this. Three <b>real</b>
+          disasters — the lawyer who filed fake case law, the airline made to honour a policy its
+          chatbot invented, a model confidently answering from a world that no longer exists — then
+          the fix, as an open-book exam.</p>
+        <div class="meta">
+          <span class="pill on">~35 min</span>
+          <span class="pill">arrow keys or a clicker</span>
+          <span class="pill">S — speaker script</span>
+          <span class="pill">? — all keys</span>
+        </div>
+      </span>
+    </a>
+
+    <a class="card c2" href="rag-pipeline.html">
+      <span class="num">02</span>
+      <span>
+        <h3>The film <span class="file">rag-pipeline.html</span></h3>
+        <p>The pipeline in slow motion, drawn one stage at a time. A real document is opened,
+          parsed, cut into chunks, turned into numbers; a question is dropped into the same space,
+          the nearest chunks come back, and you watch them get <b>pasted into an actual prompt</b>.
+          Thirteen stages. Watch it once.</p>
+        <div class="meta">
+          <span class="pill on">~10 min</span>
+          <span class="pill">→ next reveal</span>
+          <span class="pill">A — play all</span>
+          <span class="pill">R — replay</span>
+        </div>
+      </span>
+    </a>
+
+    <a class="card c3" href="rag-lab.html">
+      <span class="num">03</span>
+      <span>
+        <h3>The lab <span class="file">rag-lab.html</span></h3>
+        <p>Nine tabs, left to right — that order <i>is</i> the pipeline. Watch keyword search score
+          zero on a question the document plainly answers, see a reranker refuse to answer at all,
+          and break the whole thing yourself. <b>Type your own questions</b>; every number on screen
+          is computed in the page as you watch.</p>
+        <div class="meta">
+          <span class="pill on">hands-on</span>
+          <span class="pill">9 tabs</span>
+          <span class="pill">nothing is pre-recorded</span>
+        </div>
+      </span>
+    </a>
+
+  </div>
+
+  <hr class="rule">
+
+  <h2>If you want to build one</h2>
+  <div class="reads">
+    <a class="read" href="https://github.com/AkshayKumar-1729/rag-talk/blob/main/CONCEPTS.md">
+      <div class="t">CONCEPTS.md</div>
+      <div class="d">The concept spine — chunking, hybrid search, reranking, contextual retrieval,
+        evaluation, and the seven ways it fails. Plus where to go next.</div>
+    </a>
+    <a class="read" href="https://github.com/AkshayKumar-1729/rag-talk/blob/main/SPEAKER-NOTES.md">
+      <div class="t">SPEAKER-NOTES.md</div>
+      <div class="d">The run of show, if you want to teach this yourself. Timings, what to say at
+        each tab, and what to cut when you're running late.</div>
+    </a>
+    <a class="read" href="https://github.com/AkshayKumar-1729/rag-talk/blob/main/DECK-SCRIPT.md">
+      <div class="t">DECK-SCRIPT.md</div>
+      <div class="d">The deck slide by slide — what's on screen, what to say, and the sourced facts
+        behind every claim in it.</div>
+    </a>
+  </div>
+  <p class="reads-note">These three open on GitHub so they render as pages rather than raw text —
+    the only links here that need a connection. The three above work offline.</p>
+
+  <hr class="rule">
+
+  <p class="note"><b>About the numbers.</b> The lab doesn't call an embedding model — it uses a
+    hand-built concept map, which is what lets the whole thing run offline in a single file with no
+    dependencies. The <i>behaviours</i> are real and reproduce with real embeddings: vocabulary
+    mismatch, blindness to identifiers, chunks losing their context, the recall/precision tradeoff.
+    The specific scores are illustrative. Likewise, the generation tab replays recorded output — a
+    browser can't reach a model API directly, and shipping a key inside a page anyone can open would
+    be the wrong thing to do.</p>
+
+  <p class="note cobalt"><b>Taking it somewhere without wifi?</b> Download the repo as a ZIP, unzip
+    it, and open <code>index.html</code>. That's the whole setup. Web fonts will silently fall back
+    to system faces — it looks a little different and lays out identically. Nothing else on these
+    pages touches the network.</p>
+
+  <footer>
+    Built for a session on retrieval-augmented generation ·
+    <a href="https://github.com/AkshayKumar-1729/rag-talk">source on GitHub</a>
+  </footer>
+
+</div>
