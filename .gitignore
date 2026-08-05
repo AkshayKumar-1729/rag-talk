@@ -7,6 +7,10 @@ Indexed_Confluence_Docs_Agent_compressed.mp4
 # the notes describing them as broken did not age into anything a reader wants.
 enhancement_plan.txt
 
+# Working context for future sessions. The repo is the finished resource; this is the workshop.
+CLAUDE.md
+.claude.local.md
+
 # OS clutter
 Thumbs.db
 ehthumbs.db
