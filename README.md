@@ -112,7 +112,6 @@ this script fails loudly if an edit to a chunk's concepts makes the picture star
 | `rag-deck.html` · `rag-pipeline.html` · `rag-lab.html` | the three artifacts — each fully self-contained |
 | `CONCEPTS.md` | the concept spine and the reading list |
 | `SPEAKER-NOTES.md` | the run of show — timings, what to say, what to cut |
-| `DECK-SCRIPT.md` | the deck slide by slide, with sources for every claim |
 | `IMAGE-PROMPTS.md` | how the illustrations in `img/` were generated |
 | `verify-lab.js` | the assertions above |
 
