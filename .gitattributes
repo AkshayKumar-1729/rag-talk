@@ -1,0 +1,4 @@
+# ReportLab writes a PDF with no NUL byte in its first 8 KB, so Git's text/binary
+# heuristic guesses "text" and (with core.autocrlf=true, the Windows default) would
+# rewrite its line endings on checkout — handing a Windows clone a corrupt manual.
+*.pdf binary
