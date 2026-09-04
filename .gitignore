@@ -16,3 +16,12 @@ Thumbs.db
 ehthumbs.db
 desktop.ini
 .DS_Store
+
+# Promo brief for pitching the session at other events. Written for LinkedIn/Luma copy, not for
+# readers of the finished resource.
+EVENT-BRIEF.md
+
+# Local scratch output from verify-notebook.py — the executed/verified notebook copies it
+# writes for inspection are working state, not the deliverable.
+scratch_exec/
+__pycache__/
