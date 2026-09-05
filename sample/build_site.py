@@ -2,8 +2,11 @@
 Generates ../rag-build.html from the same cell list that builds rag-build.ipynb,
 so the copy-paste page and the notebook can never drift.
 
-    python sample/build_notebook.py            # archive build — every card open
-    python sample/build_notebook.py --paced    # session build — the gist reveals cards
+    python sample/build_notebook.py
+
+PACING_GIST alone decides how the page behaves — there is no build flag to forget.
+Set it and the page reads the gist for how far the room may see; leave it empty and
+every card renders open with no poll emitted at all.
 
 One self-contained file. Markdown is rendered and Python is highlighted here, at
 build time, so the browser needs no library and no fetch to show a single line of
@@ -541,11 +544,7 @@ const GIST = {gist};
 """
 
 
-def write(cells, paced=False):
-    if paced and not PACING_GIST:
-        raise SystemExit(
-            "--paced needs PACING_GIST set in sample/build_site.py, otherwise the "
-            "page locks at card 0 with nothing able to unlock it.")
+def write(cells):
     masthead, cards = split_cards(cells)
     total = cards[-1]["n"]
     blob = json.dumps(cards, ensure_ascii=False, separators=(",", ":"))
@@ -557,9 +556,9 @@ def write(cells, paced=False):
         style=STYLE.strip(),
         script=SCRIPT.strip(),
         cards=blob.replace("</", "<\\/"),
-        baseline=0 if paced else total,
-        gist=json.dumps(PACING_GIST if paced else ""),
+        baseline=0 if PACING_GIST else total,
+        gist=json.dumps(PACING_GIST),
     )
     OUT.write_text(page, encoding="utf-8")
-    mode = "paced from the gist" if paced else "all cards open"
+    mode = "paced from the gist" if PACING_GIST else "all cards open"
     print(f"Wrote {OUT} ({len(cards)} cards, {mode})")

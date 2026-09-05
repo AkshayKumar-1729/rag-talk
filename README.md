@@ -79,8 +79,8 @@ Card 0 installs everything and is always open, because every card below it fails
 
 The page is generated from the notebook's cells, so a card can never offer code the notebook doesn't
 run — `verify-workshop-sync.py` compares them block for block. It carries all thirteen cards inside
-itself: no fetch, no CDN, nothing to load. During a live session it can be built to reveal cards at
-the pace of the room; see [SPEAKER-NOTES.md](SPEAKER-NOTES.md).
+itself: no fetch, no CDN, nothing to load. During a live session the presenter reveals cards at the
+pace of the room from a single gist; see [SPEAKER-NOTES.md](SPEAKER-NOTES.md).
 
 ---
 

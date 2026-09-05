@@ -70,10 +70,14 @@ def check_site(notebook, failures):
     if re.search(r'<link[^>]+rel="stylesheet"[^>]+href="(?!https://fonts\.googleapis)', page):
         failures.append("page loads a stylesheet other than the non-blocking font link")
 
+    # PACING_GIST alone decides the build; the page must agree with it.
     baseline = re.search(r"const BASELINE = (\d+);", page)
-    total = cards[-1]["n"]
-    if not baseline or int(baseline.group(1)) not in (0, total):
-        failures.append("BASELINE is neither a paced build (0) nor an open one")
+    gist = re.search(r'const GIST = "([^"]*)";', page)
+    expected = 0 if build_site.PACING_GIST else cards[-1]["n"]
+    if not baseline or int(baseline.group(1)) != expected:
+        failures.append(f"BASELINE should be {expected} for this PACING_GIST setting")
+    if not gist or gist.group(1) != build_site.PACING_GIST:
+        failures.append("the page's poll URL does not match PACING_GIST")
 
 
 def main():

@@ -9,11 +9,9 @@ The notebook itself never imports fixture.py — Colab won't have it. Instead
 this script serialises the constants it needs into a literal Python dict
 embedded directly in the notebook's setup cell.
 
-Passing --paced also builds the copy-paste page with every card locked, ready to
-be revealed from the gist during the session; see build_site.py.
+It also writes the copy-paste page, rag-build.html; see build_site.py.
 """
 import json
-import sys
 from pathlib import Path
 
 import nbformat as nbf
@@ -1091,4 +1089,4 @@ print(f"Wrote {OUT} ({len(cells)} cells)")
 
 # The copy-paste page is generated from this same list, so a student pasting from
 # rag-build.html and a student running rag-build.ipynb cannot be given different code.
-build_site.write(cells, paced="--paced" in sys.argv)
+build_site.write(cells)

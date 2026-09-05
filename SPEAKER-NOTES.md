@@ -29,27 +29,30 @@ tab. Each lab checkpoint names the notebook section to run. Use this order:
 ### Pacing the room with `rag-build.html`
 
 Students who type rather than press Run All open `rag-build.html` — the same thirteen sections as
-cards, each code block with a Copy button. Two builds:
+cards, each code block with a Copy button.
 
-- `python sample/build_notebook.py` — the committed state. Every card open. This is the page students
-  keep afterwards, and it needs no network at all.
-- `python sample/build_notebook.py --paced` — the session build. Only card 0 (the installs) shows;
-  the rest unlock as you raise `unlocked` in the control gist:
+**One gist is the whole control.** Nothing to rebuild, nothing to push around a session:
 
-  **https://gist.github.com/AkshayKumar-1729/4f7a8a31ddc6881d22056ba0d6dba61e**
+**https://gist.github.com/AkshayKumar-1729/4f7a8a31ddc6881d22056ba0d6dba61e**
 
-  Edit → set `{"unlocked": 5}` → Update. Every student's page unlocks through card 5.
+Edit → set `{"unlocked": 5}` → Update. Every student's page unlocks through card 5.
+
+| Set it to | The room sees |
+|---|---|
+| `0` | card 0 only — the installs. Where you start the session. |
+| `1`…`11` | up to that card |
+| `12` | everything. **Leave it here between sessions** — this is the public reference. |
 
 **Change it about half a minute early.** The page re-reads the gist every four seconds, but GitHub's
 CDN serves the old value for a while after you save — measured at **20–30 seconds** end to end. That
-lag is GitHub's, not the page's; polling faster would not help.
-
-Set `unlocked` back to `0` before the next session, and to `12` if you ever want the paced build fully
-open without rebuilding.
+lag is GitHub's, not the page's; polling faster would not help. It applies only to *changes*: a
+student opening the page cold gets the current value in about a third of a second.
 
 If the wifi drops mid-session the page holds where it is and says so. It never races ahead of you and
-never takes back a card students already have. Rebuild without `--paced` and push after the session so
-the public page is open for good.
+never takes back a card students already have.
+
+⚠️ **Don't delete that gist.** The published page reads it, so a missing gist leaves the public page
+stuck at card 0.
 
 The compact measured card at the top of each advanced tab is the bridge: its numbers come from the
 same MiniLM/cross-encoder pipeline as Colab. The interactive nine-chunk visual beneath it is a focus
