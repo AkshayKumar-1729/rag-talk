@@ -1083,6 +1083,11 @@ for cell in cells:
         cell.source += f'\n\nThe lab’s top-k scene asks: **“{eval_query}”**'
         break
 
+# nbformat mints a random id per cell on every write, so an unchanged rebuild would
+# still show 50 lines of churn in git. Number them by position instead.
+for index, cell in enumerate(cells):
+    cell["id"] = f"c{index:02d}"
+
 nb["cells"] = cells
 nbf.write(nb, str(OUT))
 print(f"Wrote {OUT} ({len(cells)} cells)")
