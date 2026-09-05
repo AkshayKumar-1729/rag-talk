@@ -488,7 +488,14 @@ async function poll() {
 }
 
 render();
-if (GIST) { poll(); setInterval(poll, 4000); }
+if (GIST) {
+  poll();
+  setInterval(poll, 4000);
+  // Students keep this page in a background tab while they work in Colab, and Chrome
+  // throttles timers in hidden tabs to as little as once a minute. Poll the moment
+  // they look at it again, so switching back is always current.
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
+}
 """
 
 PAGE = """<!DOCTYPE html>

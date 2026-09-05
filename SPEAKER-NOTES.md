@@ -48,6 +48,10 @@ CDN serves the old value for a while after you save — measured at **20–30 se
 lag is GitHub's, not the page's; polling faster would not help. It applies only to *changes*: a
 student opening the page cold gets the current value in about a third of a second.
 
+Students keeping the page in a background tab while they work in Colab will see it update more
+slowly — Chrome throttles hidden tabs to about one check a minute — but it refreshes the instant they
+switch back to it, so what they look at is always current.
+
 If the wifi drops mid-session the page holds where it is and says so. It never races ahead of you and
 never takes back a card students already have.
 
