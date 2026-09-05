@@ -1336,8 +1336,8 @@ const SpaceMap=(function(){
       /* The case the room needs to see: retrieval hands something over even when part of
          the question describes nothing in the index at all. */
       note.innerHTML='<b>Look at the map, not the number.</b> <span style="font-family:var(--mono)">'+gone.map(escHtml).join('</span>, <span style="font-family:var(--mono)">')+'</span> — '+(gone.length>1?'those axes are':'that axis is')+' carried by <b>no chunk in this index</b>, which is why the question is sitting out on its own with everything far from the centre. Retrieval still hands over <span style="font-family:var(--mono)">'+sem[0].tag+' '+semTop.toFixed(2)+'</span>, not because it is a match but because it is the <i>least-far</i> thing there is. <b>Nothing in that score says "I am not sure."</b> Tab 05 is where something finally does.';
-    }else if(lexTop<0.02){
-      note.innerHTML='<b>Watch what just happened.</b> Keyword search scored <span style="font-family:var(--mono)">0.00</span> across the board — none of the question\'s words appear literally in the document (it says "refund" not "money back", "charge" not "battery"). The answer <i>is</i> in the index, but lexical matching is blind to it. Semantic search reads through to the meaning and pulls the right chunk straight to the top. This vocabulary-mismatch gap is exactly why embeddings exist.';
+    }else if(lexTop<0.02 || semTop-lexTop>0.25){
+      note.innerHTML='<b>Watch what just happened.</b> Keyword search may catch an incidental shared word, but it misses the idea. The document says <i>power</i>; the question says <i>plug it in</i>. Semantic search reads through to the meaning and pulls the right chunk clearly to the top. This vocabulary-mismatch gap is exactly why embeddings exist.';
     } else {
       note.innerHTML='<b>The lesson:</b> when the question shares words with the document, keyword search does fine. It only breaks on <i>vocabulary mismatch</i>. That\'s why production systems run <b>both and fuse the rankings</b> (hybrid search) — keyword is unbeatable for exact terms like error codes, SKUs and names.';
     }
