@@ -1,7 +1,7 @@
 """
 Executes rag-build.ipynb headlessly and asserts the claims it makes on a
 projector — same reason verify-lab.js exists: the demos depend on specific
-words and rankings in a 20-page document, and an innocent edit can silently
+words and rankings in a 14-page document, and an innocent edit can silently
 kill one.
 
     python verify-notebook.py        # expect: all assertions passed
@@ -21,10 +21,65 @@ from pathlib import Path
 import nbformat as nbf
 from nbclient import NotebookClient
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 ROOT = Path(__file__).parent
 NB_PATH = ROOT / "rag-build.ipynb"
 SAMPLE_PDF = ROOT / "sample" / "aeronote-manual.pdf"
 EXEC_DIR = ROOT / "scratch_exec"
+
+
+def verify_notebook_source(nb):
+    """Catch presentation regressions before spending time executing models."""
+    source = "\n".join(cell["source"] for cell in nb["cells"])
+    code_cells = [cell["source"] for cell in nb["cells"] if cell["cell_type"] == "code"]
+    prepare, later_code = code_cells[0], "\n".join(code_cells[1:])
+    forbidden = {
+        "safe to skip if you're short on time": "presenter-facing run-of-show text",
+        "FALSE — check the fixture": "maintainer/debugging text",
+        ".observe(": "chat input must not submit when it merely loses focus",
+        "from IPython.display import display, HTML": "unused HTML import",
+    }
+    required = {
+        "Thinking…": "visible chat progress state",
+        "LOW CONFIDENCE": "low-score warning for uploaded documents",
+        "Mean reciprocal rank": "ranking metric that is not pinned at hit-rate@3",
+        "explained_variance_ratio_": "honest PCA variance label",
+    }
+
+    failures = [f"{reason}: {text!r}" for text, reason in forbidden.items() if text in source]
+    failures += [f"missing {reason}: {text!r}" for text, reason in required.items() if text not in source]
+
+    # The audience should run one preparation cell and then be ready for the
+    # teaching flow. Downloads or model initialisation must not surprise them
+    # halfway through the notebook.
+    prepare_requires = {
+        "About 950 MB": "audience-facing download estimate",
+        "SentenceTransformer(EMB_MODEL)": "embedding model preload",
+        "CrossEncoder(CE_MODEL)": "reranker preload",
+        "AutoTokenizer.from_pretrained(LOCAL_MODEL)": "generation tokenizer preload",
+        "AutoModelForCausalLM.from_pretrained(LOCAL_MODEL)": "generation model preload",
+        "urllib.request.urlretrieve(PDF_URL, PDF_PATH)": "sample PDF download",
+    }
+    failures += [
+        f"first code cell missing {reason}: {text!r}"
+        for text, reason in prepare_requires.items()
+        if text not in prepare
+    ]
+    for text, reason in {
+        ".from_pretrained(": "late model download",
+        "SentenceTransformer(": "late embedding-model initialisation",
+        "CrossEncoder(": "late reranker initialisation",
+        "urlretrieve(": "late sample-file download",
+    }.items():
+        if text in later_code:
+            failures.append(f"{reason} outside the first code cell: {text!r}")
+    if failures:
+        print("Notebook source checks failed:")
+        for failure in failures:
+            print(f"- {failure}")
+        sys.exit(1)
 
 STUB_CELL = """
 import sys, types
@@ -94,6 +149,13 @@ _check("BM25 does not win the vocabulary-mismatch query", _bm25_ranked.index(d["
 _hit_semantic = hit_rate_at_k(dense_retrieve)
 _hit_hybrid = hit_rate_at_k(hybrid_retrieve)
 _hit_reranked = hit_rate_at_k(reranked_retrieve)
+# The chart used to label this row "hybrid, reranked" while reranked_retrieve
+# actually shortlisted from dense_retrieve alone — wrong regardless of whether
+# section 6 ran. A full top-to-bottom run (this verifier never skips a
+# section) always has bm25_retrieve/rrf_fuse defined, so the label must say
+# "hybrid, reranked", not fall back to "dense, reranked".
+_check("reranked chart label matches what actually fed the reranker",
+       RERANKED_LABEL == "hybrid, reranked", RERANKED_LABEL)
 # RRF fusion is not guaranteed to preserve every single dense win on every
 # query — it trades some semantic hits for keyword/identifier robustness (see
 # the changelog demo in §6). A small dip is real and expected; a collapse
@@ -115,6 +177,18 @@ _check("context prefix promotes the orphaned chunk past the parent", _s_ctx > _s
 
 _check("51 chunks re-indexed from the re-uploaded sample as 'the user's own PDF'",
        len(user_chunks) == 51)
+
+_low_note = source_note([(chunks[0], REFUSAL_THRESHOLD - 0.01)])
+_check("uploaded-document answers warn when retrieval is below the threshold",
+       "LOW CONFIDENCE" in _low_note, _low_note)
+
+_fake_resume = [(1, "Student profile and project summary.\n"
+                    "2.5 years of experience building payment systems.\n"
+                    "Python, PostgreSQL, Kubernetes, and distributed services.")]
+_fake_chunks = chunk_user_pdf(_fake_resume)
+_check("a decimal in ordinary prose cannot trick student-PDF section chunking",
+       _fake_chunks[0]["title"] == "Section 1"
+       and "Student profile" in _fake_chunks[0]["text"])
 
 # §9 claims on screen that the model invents an answer from memory and gets it
 # right from retrieval. If a model update ever makes the memory answer correct,
@@ -145,10 +219,12 @@ def main():
         print(f"{SAMPLE_PDF} doesn't exist — run `python sample/make-manual.py` first.")
         sys.exit(1)
 
+    nb = nbf.read(str(NB_PATH), as_version=4)
+    verify_notebook_source(nb)
+
     EXEC_DIR.mkdir(exist_ok=True)
     shutil.copy(SAMPLE_PDF, EXEC_DIR / "aeronote-manual.pdf")
 
-    nb = nbf.read(str(NB_PATH), as_version=4)
     nb["cells"].insert(2, nbf.v4.new_code_cell(STUB_CELL))
     nb["cells"].append(nbf.v4.new_code_cell(ASSERT_CELL))
 
@@ -160,6 +236,16 @@ def main():
         client.execute()
     finally:
         nbf.write(nb, str(EXEC_DIR / "rag-build.verified.ipynb"))
+
+    stream_text = "\n".join(
+        output.get("text", "")
+        for cell in nb["cells"]
+        for output in cell.get("outputs", [])
+        if output.get("output_type") == "stream"
+    )
+    if "unauthenticated requests to the HF Hub" in stream_text:
+        print("Notebook output still contains the Hugging Face authentication warning.")
+        sys.exit(1)
 
     assert_cell = nb["cells"][-1]
     for output in assert_cell.get("outputs", []):

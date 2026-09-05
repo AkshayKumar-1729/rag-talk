@@ -14,11 +14,11 @@ this is the shape of the job.
 |---|---|---|
 | 1 | Why RAG at all | the deck, and Act 0 of the session |
 | 2 | The core pipeline — two clocks | tab **00 Pipeline** |
-| 3 | The building blocks | tabs **01 Embeddings**, **02 The document** |
-| 4 | Making retrieval actually good | tabs **03 Retrieval**, **04 Reranking**, **06 Hybrid**, **07 Contextual** |
+| 3 | The building blocks | tabs **01 The document**, **02 Embeddings** |
+| 4 | Making retrieval actually good | tabs **03 Retrieval**, **04 Hybrid**, **05 Reranking**, **06 Contextual** |
 | 5 | Evaluation | tab **08 Evaluation** |
-| 6 | The frontier | — |
-| 7 | Failure modes | tabs 02, 03, 04, 07, 08 produce five of them on demand |
+| 6 | The frontier | tab **10 Beyond** |
+| 7 | Failure modes | tabs 01, 03, 05, 06, 08 produce five of them on demand |
 
 ---
 

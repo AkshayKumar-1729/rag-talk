@@ -6,7 +6,56 @@ long*. Read that one the night before; run the session from this one.
 
 **Setup:** open `rag-lab.html` in a browser — and `rag-pipeline.html` alongside it, which Act 1 now
 opens from tab 00. No network needed, nothing to install, no API key.
-Everything on screen is computed in the page. Fonts come from Google and will silently fall back
+
+## Build-along mode · lab + Colab
+
+For the student workshop, keep `rag-lab.html` on the projector and the notebook in the next browser
+tab. Each lab checkpoint names the notebook section to run. Use this order:
+
+| Lab | Colab | Teaching beat |
+|---|---|---|
+| 00 Pipeline | Prepare + §1 | prepare the runtime; establish the two clocks |
+| 01 The document | §§2–3 | load page 2, remove furniture, create 51 chunks |
+| 02 Embeddings | §4 | map the plug-it-in query, then inspect real 384-D scores |
+| 03 Retrieval | §5 | vocabulary mismatch and an honest refusal threshold |
+| 04 Hybrid | §6 | version 1.5: BM25 beats dense; RRF fuses ranks |
+| 05 Reranking | §7 | the pressure-level answer rises after joint reading |
+| 06 Contextual | §8 | the cracked-screen exception gets its policy back |
+| 07 Generation | §9 | E-42 from memory versus retrieved evidence |
+| 08 Evaluation | §10 | benchmark retrieval separately from generation |
+| 09 Your PDF | §11 | upload, index, ask and inspect citations |
+| 10 Beyond | §12 | production layers and close |
+
+### Pacing the room with `rag-build.html`
+
+Students who type rather than press Run All open `rag-build.html` — the same thirteen sections as
+cards, each code block with a Copy button. Two builds:
+
+- `python sample/build_notebook.py` — the committed state. Every card open. This is the page students
+  keep afterwards, and it needs no network at all.
+- `python sample/build_notebook.py --paced` — the session build. Only card 0 (the installs) shows;
+  the rest unlock as you raise `unlocked` in the control gist:
+
+  **https://gist.github.com/AkshayKumar-1729/4f7a8a31ddc6881d22056ba0d6dba61e**
+
+  Edit → set `{"unlocked": 5}` → Update. Every student's page unlocks through card 5.
+
+**Change it about half a minute early.** The page re-reads the gist every four seconds, but GitHub's
+CDN serves the old value for a while after you save — measured at **20–30 seconds** end to end. That
+lag is GitHub's, not the page's; polling faster would not help.
+
+Set `unlocked` back to `0` before the next session, and to `12` if you ever want the paced build fully
+open without rebuilding.
+
+If the wifi drops mid-session the page holds where it is and says so. It never races ahead of you and
+never takes back a card students already have. Rebuild without `--paced` and push after the session so
+the public page is open for good.
+
+The compact measured card at the top of each advanced tab is the bridge: its numbers come from the
+same MiniLM/cross-encoder pipeline as Colab. The interactive nine-chunk visual beneath it is a focus
+model for explaining the mechanism. Run the browser visual while slower generation cells execute.
+The compact checkpoint cards are measured by the Python models and embedded for offline replay; the
+nine-chunk focus interactions are computed in the page. Fonts come from Google and will silently fall back
 to system fonts offline — different-looking, identical layout. Nothing else touches the network.
 
 **Before you start:** browser zoom to ~110–125% for a projector, and open the file *once* before
@@ -15,7 +64,7 @@ the room fills so you're not fumbling tabs while people watch.
 > ### The session now opens with a deck
 > `rag-deck.html` — 16 slides, ~35 min, aimed at the *mixed-background* half of the room. Three real
 > disaster stories (the lawyer, the airline, the knowledge cutoff), then the open-book-exam metaphor.
-> It ends by putting the lab's own nine-tab bar on screen, so the handoff is a door rather than a
+> It ends by putting the lab's own checkpoint bar on screen, so the handoff is a door rather than a
 > topic change. Arrow keys or a clicker; `?` lists the keys; `S` shows the script on screen.
 >
 > **Total session is now ~131 minutes**, not 90. If you only have 90, cut the *lab* down using the
@@ -25,11 +74,10 @@ the room fills so you're not fumbling tabs while people watch.
 
 ---
 
-## Shape of the session (90 min)
+## Shape of the original talk (90 min)
 
-The tab order *is* the narrative. Tabs 00–05 are the demo every tutorial gives you.
-Tabs 06–08 are what production actually requires. Say that out loud at the 05→06 seam —
-it's the spine of the whole talk.
+The detailed notes below preserve the original talk’s dramatic order. The student build-along uses
+the synchronized order in the table above; follow the blue Colab cue rail when teaching that version.
 
 | | Segment | Where | Min |
 |---|---|---|---|
@@ -116,7 +164,7 @@ numbers off it. That two-step hop is the *approximate* in approximate nearest ne
 the trace lights a sentence about *battery life* back on the printed page. That is correct — the
 model cited a **chunk**, and that chunk happens to contain a sentence the answer never used. Say it:
 *"citations point at chunks, not sentences, and a chunk is bigger than the claim."* It is a free,
-honest preview of why chunk size is a design decision (tab 02) and why precision is worth measuring
+honest preview of why chunk size is a design decision (tab 01) and why precision is worth measuring
 (tab 08).
 
 **What the film deliberately withholds**, so you don't spend a later tab's payoff early — if someone
@@ -124,10 +172,10 @@ asks, the honest answer is "that's coming":
 
 | The film shows | It does not show | Paid off in |
 |---|---|---|
-| the cut happening; chunk size as a dial | turning the dial — fragments vs. dilution | tab 02 |
-| one chunk → twelve numbers → a point | clicking around the meaning space | tab 01 |
+| the cut happening; chunk size as a dial | turning the dial — fragments vs. dilution | tab 01 |
+| one chunk → twelve numbers → a point | clicking around the meaning space | tab 02 |
 | the query landing, three neighbours lighting | keyword vs. semantic, `battery life → 0.00` | tab 03 |
-| a grounded answer with citations | the *wrong* answer next to it | tab 05 |
+| a grounded answer with citations | the *wrong* answer next to it | tab 07 |
 | three chunks retrieved, two cited | why that gap matters, and how to measure it | tab 08 |
 
 It uses the same fictional Aeronote corpus as tabs 03 and 06, so tabs 01–05 are literally zoom-ins on
@@ -141,7 +189,7 @@ text the room has already read.
 
 ---
 
-### 01 · Embeddings — 8 min
+### 02 · Embeddings — 8 min
 
 **Do, in this order:**
 
@@ -160,7 +208,7 @@ MTEB leaderboard and move on.
 
 ---
 
-### 02 · The document — 10 min ⭐ *everything downstream depends on this landing*
+### 01 · The document — 10 min ⭐ *everything downstream depends on this landing*
 
 *This tab used to chunk a passage about RAG itself. It now opens the actual document the rest of
 the lab searches, so nothing after it is an assertion the room has to take on trust.*
@@ -180,7 +228,7 @@ confusion later:
 1. Point at the coral struck-through text on each card: `1.1 The reading surface — heading dropped`.
    **This is the beat that matters.** The `§` tag is a label we keep *beside* the chunk; the heading
    itself is not in the text that gets embedded. Read chunk 8 aloud — *"You can return the Aeronote
-   within 45 days…"* — and ask what policy it belongs to. It doesn't say. **Bank this for tab 07.**
+   within 45 days…"* — and ask what policy it belongs to. It doesn't say. **Bank this for tab 06.**
 2. **Fixed size**, drag to **70** → *15 chunks, avg 68*. Fragments. The price gets separated from
    the words that say it is a price.
 3. Drag to **520** → *2 chunks, avg 489*. One chunk now carries the screen, the charge *and* the
@@ -238,14 +286,14 @@ point at:
   how long a charge lasts. **The space does not respect your headings** — it only knows what things
   mean.
 
-6. **Chip "how long is the warranty?"** — the one to slow down on, and the reason step 1 of tab 02
+6. **Chip "how long is the warranty?"** — the one to slow down on, and the reason step 1 of tab 01
    exists.
    → The question lands in open ground with nothing inside the `0.75` ring — you can see it is
    lost before you read anything. The concept `warranty` comes up **coral and struck through**:
    *no chunk in this index carries that axis at all.* And retrieval hands over
    `§ returns 0.50` anyway — not because it matches, but because it is the **least-far** thing there
    is. Ask the room: *what should a system do here?* Then say: **nothing in that score tells you it
-   is guessing.** Tab 04 is where something finally does.
+   is guessing.** Tab 05 is where something finally does.
 
 **Then hand them the keyboard.** Genuinely let them type questions for 3–4 minutes — it's the best
 minutes in the session.
@@ -255,51 +303,33 @@ minutes in the session.
 > model nothing and let it improvise.
 >
 > **If semantic confidently returns the _wrong_ chunk, don't apologise for it — bank it.**
-> Say: *"Hold that thought. Retrieval is confident and wrong. Fixing exactly that is tab 04's job."*
+> Say: *"Hold that thought. Retrieval is confident and wrong. Fixing exactly that is tab 05's job."*
 >
 > One to trigger deliberately if the room doesn't find one: **"is the pen expensive?"** → semantic
 > returns `§ stylus 0.52`. The chunk that actually has the $399 is down at `0.29` — and *tied there
 > with `§ display`*, which ranks above it on the document-order tiebreak, so don't point at "the
 > runner-up" and expect pricing. Point at `§ pricing` by name. **Save this one** — it's a free
-> callback when you reach tab 06.
+> callback when you reach tab 04.
 
 **Do not resolve the tension yet.** Let them leave this tab believing keyword search is useless.
-Tab 06 is where you take it back.
+Tab 04 is where you take it back.
 
 ---
 
-### 04 · Reranking — 8 min
+### 05 · Reranking — 8 min
 
-*Every number in this tab is computed from the nine chunks. It used to be two hardcoded arrays,
-which is why nobody could tell how the reranker worked by looking at it.*
+**Measured checkpoint — "how many pressure levels does the pen support"**
 
-**Chip A — "how do I get my notes onto my computer?" · it reorders**
+Dense retrieval puts the topical `§12.2 Extra pen tips` first. The actual fact lives in `§2.5 The
+stylus`, initially at rank 3. Click **Run reranker**: §2.5 moves to rank 1 because the cross-encoder
+reads the question and candidate together and sees the requested pressure-level evidence.
 
-Look at stage 1 **before** clicking anything. `§ display 0.35`, then `§ sync`, `§ stylus`,
-`§ updates` all at `0.32`.
+Run Colab §7 and compare the same five candidates. The browser card was exported from that model,
+so the order and scores should match. **The line to land:** dense retrieval found a neighbourhood;
+the cross-encoder judged which neighbour answers the question.
 
-Read the winning chunk aloud: *"The Aeronote is a 10.3-inch e-ink tablet for handwriting and
-reading."* Then ask the room whether that answered the question. It didn't — and the chunk that
-does (*"any page can be exported as a PDF or plain text file"*) came second.
-
-Point at the map: the question has landed in the middle of a little crowd, four dots at almost the
-same distance. **It landed in a neighbourhood, not on an answer**, because `writing` and `notes` are
-smeared across four sections. A single vector comparison has nothing left to break that tie with.
-
-**Now click ▶ Run reranker.** `§ sync` jumps to **0.69** and #1; `§ display` collapses to **0.02**.
-
-**The panel underneath is the point of the tab.** It shows what the cross-encoder read:
-
-- **subject** — the question's sharpest concept is `notes`, carried by **1 of the 9 chunks**. That's
-  IDF by another name: the axis that narrows it down most. `§ sync` has it; `§ display` doesn't.
-- **evidence** — the question asks for *something to do*, so it looks for one in the chunk's actual
-  text. `§ sync` says "can be exported"; `§ display` describes a screen.
-- **topic** — the stage-1 cosine, carried in, but no longer deciding on its own.
-
-Say the caveat on screen out loud: **it's a toy** — three rules you can read, standing in for a
-transformer. A real cross-encoder learns this rather than being told it. What matters is the shape:
-**both texts, one pass, then a judgement.** Stage 1 structurally cannot do that — by the time it
-compares, both texts are already vectors and the words are gone.
+The focus interaction underneath remains useful for opening the mechanism: a bi-encoder compares
+separate vectors, while a cross-encoder sees both texts in one pass.
 
 **Chip B — "how long is the warranty?" · it refuses**
 
@@ -315,20 +345,21 @@ Point at the reason: the sharpest concept is `warranty`, carried by **0 of the 9
 
 **Say the number:** in real systems this is often the single biggest quality jump for the least work.
 
-### 05 · Generation — 5 min
+### 07 · Generation — 5 min
 
 **Do:**
 
 1. Click **Show retrieved context** first, so they see the chunk that's about to be handed over.
-2. Click **▶ Generate both answers**. Left: *"probably about 30 days"* — confident and wrong.
-   Right: **45 days**, with a citation.
+2. Click **▶ Generate both answers**. Left: a generic invented meaning for E-42. Right: the actual
+   digitizer-reset procedure, with the troubleshooting-page citation.
 
 **The takeaway, verbatim:** RAG didn't make the model smarter. It handed over the right page at
 answer time. The model stops guessing, answers correctly, and can **cite its source** — and that
 last part is what turns a demo into something a business will actually deploy.
 
-> ⚠️ **These two answers are recorded, not live.** They're transcripts of that exact pair of API
-> calls, replayed with a typing animation. Say so if anyone asks — don't imply it's calling a model.
+> ⚠️ **These two answers are recorded, not live.** They preview the same E-42 contrast the notebook
+> runs with the local model, replayed with a typing animation. Say so — don't imply the browser is
+> calling a model.
 > (Reason: a browser can't call the Anthropic API directly, and putting a key in a file you hand to
 > a room would leak it to everyone in it.)
 
@@ -344,32 +375,22 @@ last part is what turns a demo into something a business will actually deploy.
 > "That's the tutorial. Load, chunk, embed, retrieve, generate — and it works, on a good day, on a
 > clean question. Everything from here is what you add when it has to work on a *bad* day."
 
-Then click tab 06.
+Then click tab 04.
 
 ---
 
 ## Act 2 — What production adds (32 min)
 
-### 06 · Hybrid — 10 min ⭐ *the payoff for tab 03*
+### 04 · Hybrid — 10 min ⭐ *the payoff for tab 03*
 
-**Do — the two chips are mirror images and the order matters:**
+**Do:** run the measured checkpoint **"what's new in version 1.5"**, then run Colab §6.
 
-1. Chip **"battery life"** — the tab 03 case again. Sparse: *"Nothing matched. Every document
-   scored 0.00."* Dense carries it alone. Fusion passes the answer straight through.
-2. Chip **"E-42"** — **the reveal.** Now the *dense* column reads *"Nothing matched. Every document
-   scored 0.00."* and sparse nails it at **1.00**.
+Five release-note chunks use almost the same sentence template. Dense retrieval puts §6.2 first and
+the real answer, §6.5, third. BM25 sees the literal token `1.5` and puts §6.5 first. The browser card
+and notebook output are generated from the same 51 chunks and models.
 
-**Pause here.** Ask: why can't the embedding model find an error code?
-→ Because "E-42" has no *meaning*. It shatters into meaningless subword tokens and lands in a dead
-region of the space. There is nothing semantic to match. Keyword search doesn't care — it matches
-the literal string.
-
-**The line:** *this is why you do not delete BM25.* Error codes, SKUs, part numbers, people's names,
-API method names, version strings — exact identifiers are the one thing lexical search does better
-than any embedding, permanently. It's not a legacy system you're migrating off.
-
-3. Chip **"export notes as PDF"** — both retrievers agree, `§ sync` tops both lists, and its fused
-   score (**0.0328**) is roughly **double** the runners-up (0.0161), which each appeared in one list only.
+**The line:** exact identifiers still matter. Versions, error codes, SKUs, names and API methods are
+where lexical evidence can separate near-identical semantic neighbours.
 
 **The formula, on screen:** `score(d) = Σ 1 / (k + rank(d))`, k = 60 by convention.
 
@@ -377,24 +398,24 @@ than any embedding, permanently. It's not a legacy system you're migrating off.
 similarities live on completely incompatible scales — you cannot average them. But "came 2nd" means
 the same thing in both lists. That's why RRF works, and it's why it needs no tuning per corpus.
 
-**And the deeper point:** RRF doesn't just merge, it rewards **consensus** between two retrievers
-that fail in *uncorrelated* ways. That's the whole argument for hybrid in one sentence.
+**And the deeper point:** RRF rewards **consensus** between retrievers that fail in uncorrelated
+ways. The smaller focus interaction remains below the measured card for free exploration.
 
 ---
 
-### 07 · Contextual retrieval — 10 min
+### 06 · Contextual retrieval — 10 min
 
 *The most Claude-relevant beat in the session, and the one an advanced audience will value most.*
 
 *This tab used to import a separate three-chunk warranty page — which is how the lab managed to
 claim both that the corpus has no warranty (tab 03) and that it has one (here). It now opens up
-§ 3.2 Returns, chunk 8 from tab 02, so the room is watching a chunk they have already seen indexed.*
+§ 3.2 Returns, chunk 8 from tab 01, so the room is watching a chunk they have already seen indexed.*
 
 **Do:**
 
 1. Read the source line: this is **chunk 8, split three ways**, the way a longer policy page really
    would be. Chunk 1 is the exact sentence they saw retrieved in tab 03 and handed to the model in
-   tab 05.
+   tab 07.
 2. Read **chunk 2 aloud, exactly as it appears**: *"This does not apply to a unit with a cracked
    screen, water damage, or a missing stylus."* Then ask: **"This — what?"** Let it land.
 3. Point at the scores. Query is *"Can I return a tablet with a cracked screen?"* Chunk 2 is the
@@ -404,7 +425,7 @@ claim both that the corpus has no warranty (tab 03) and that it has one (here). 
 **Why it loses, precisely:** chunk 2 matches the *cracked screen* half of the question and loses the
 *can I return* half, because it never says **return** or **refund**. Those words were one sentence
 up — and the heading that would have carried them was **dropped when the chunk was cut**. They
-watched that happen in tab 02, on the coral struck-through line. Call the callback.
+watched that happen in tab 01, on the coral struck-through line. Call the callback.
 
 **Spell out the user-facing consequence:** top-1 retrieval misses the answer completely. Even top-2
 hands the model the reassuring paragraph first, so it reads "45 days, no questions asked" and tells
@@ -413,7 +434,7 @@ the customer they're covered. Confident. Sourced. Wrong.
 4. Click **Add context & re-embed**. Chunk 2 jumps **0.52 → 0.91** and past chunk 1.
 
 **Look at what the generated blurb actually is:** *"From the Aeronote returns policy, § 3.2 — what
-is excluded from the refund:"* — **that is the heading tab 02 threw away**, written back in prose.
+is excluded from the refund:"* — **that is the heading tab 01 threw away**, written back in prose.
 The whole technique is putting back what chunking took out.
 
 **The technique:** before embedding, have an LLM write a one-line blurb situating each chunk in its
@@ -481,10 +502,10 @@ the tab that produced each one:
 
 | Failure | Where you saw it | Fix |
 |---|---|---|
-| Retrieved the wrong chunk | tab 02 (too big / too small) | tune the split; parent-document |
-| Right chunk never retrieved | **tab 03** (vocabulary mismatch) | **hybrid** (06), HyDE |
-| Chunk lost its context | **tab 07** ("this does not apply…") | **contextual retrieval** |
-| Right chunks, wrong order | **tab 04** | **reranking** |
+| Retrieved the wrong chunk | tab 01 (too big / too small) | tune the split; parent-document |
+| Right chunk never retrieved | **tab 03** (vocabulary mismatch) | **hybrid** (04), HyDE |
+| Chunk lost its context | **tab 06** ("this does not apply…") | **contextual retrieval** |
+| Right chunks, wrong order | **tab 05** | **reranking** |
 | Buried in a long context | **tab 08** at k=5 | fewer, better chunks; ordering |
 | Silent quality regression | **tab 08** at k=1 | **measure retrieval separately** |
 | Stale index | — | re-index on write |

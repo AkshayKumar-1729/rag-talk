@@ -8,12 +8,17 @@ shipped notebook can never drift from what sample/probe-demos.py validated.
 The notebook itself never imports fixture.py — Colab won't have it. Instead
 this script serialises the constants it needs into a literal Python dict
 embedded directly in the notebook's setup cell.
+
+Passing --paced also builds the copy-paste page with every card locked, ready to
+be revealed from the gist during the session; see build_site.py.
 """
 import json
+import sys
 from pathlib import Path
 
 import nbformat as nbf
 
+import build_site
 import fixture as fx
 
 OUT = Path(__file__).parent.parent / "rag-build.ipynb"
@@ -36,7 +41,7 @@ md(r"""
 
 This is Part 2 of the RAG session. Part 1 showed you *why* retrieval fails and
 what fixes it, in a browser toy. This notebook builds the real thing, in the
-same order, on a real 18-page product manual — then on **your own PDF**.
+same order, on a real 14-page product manual — then on **your own PDF**.
 
 Every step below is a cell you already recognise from the slides. Run them in
 order top to bottom (**Runtime → Run all** is safe to use at any point).
@@ -49,41 +54,45 @@ reranking, evaluation — is identical either way.
 """)
 
 code(r"""
-# ---- installs (Colab has most of this already; this is safe to re-run) ----
-import importlib, subprocess, sys
-
-def ensure(pkg, import_name=None):
-    try:
-        importlib.import_module(import_name or pkg)
-    except ImportError:
-        subprocess.run([sys.executable, "-m", "pip", "install", "-q", pkg], check=True)
-
-for pkg, name in [
-    ("pypdf", "pypdf"),
-    ("sentence-transformers", "sentence_transformers"),
-    ("rank_bm25", "rank_bm25"),
-    ("transformers", "transformers"),
-    ("matplotlib", "matplotlib"),
-    ("scikit-learn", "sklearn"),
-]:
-    ensure(pkg, name)
-
-print("All set.")
-""")
-
-code(r"""
-# ---- the one switch that matters ----
-GENERATION = "local"   # "local" (default, keyless) or "api" (bring your own key)
-
-# If GENERATION == "api", put a key in Colab's secrets panel (key icon, left
-# sidebar) named ANTHROPIC_API_KEY, then flip the switch above and re-run
-# section 9. Nothing else in this notebook needs to change.
-""")
-
-code(r"""
-import time, re, io
+#@title 0. Prepare the notebook — run this once before the session starts
+import importlib, logging, os, re, subprocess, sys, time, urllib.request, warnings
 from contextlib import contextmanager
 
+# About 950 MB of model files will be downloaded into this temporary Colab
+# runtime, not installed on your laptop. A fresh runtime downloads them again.
+print("Preparing this Colab runtime…")
+print("About 950 MB of model files will be downloaded on the first run.")
+print("Allow roughly 2–5 minutes, depending on Colab.\n")
+
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+warnings.filterwarnings("ignore", message=".*unauthenticated requests to the HF Hub.*")
+
+def ensure(package, module=None):
+    try:
+        importlib.import_module(module or package)
+    except ImportError:
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", package], check=True)
+
+print("1/5 · Checking required packages…")
+for package, module in [
+    ("pypdf", None),
+    ("sentence-transformers", "sentence_transformers"),
+    ("rank_bm25", None),
+    ("transformers", None),
+    ("matplotlib", None),
+    ("scikit-learn", "sklearn"),
+    ("ipywidgets", None),
+]:
+    ensure(package, module)
+
+from huggingface_hub.utils import logging as hf_logging
+from sentence_transformers import CrossEncoder, SentenceTransformer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
+
+hf_logging.set_verbosity_error()
 SECTION_TIMES = {}
 
 @contextmanager
@@ -93,6 +102,48 @@ def section(name):
     dt = time.time() - t0
     SECTION_TIMES[name] = dt
     print(f"[{name}] {dt:.1f}s")
+
+def tok(s):
+    return re.findall(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*", s.lower())
+
+GENERATION = "local"   # "local" (default, keyless) or "api" (bring your own key)
+EMB_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+CE_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+LOCAL_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"
+PDF_URL = "https://akshaykumar-1729.github.io/rag-talk/sample/aeronote-manual.pdf"
+PDF_PATH = "aeronote-manual.pdf"
+
+print("2/5 · Preparing the sample PDF…")
+with section("prepare sample PDF"):
+    if not os.path.exists(PDF_PATH):
+        try:
+            urllib.request.urlretrieve(PDF_URL, PDF_PATH)
+        except Exception as e:
+            raise RuntimeError(
+                "The sample PDF could not be downloaded. Upload aeronote-manual.pdf "
+                "to the Colab file pane, then run this cell again."
+            ) from e
+
+print("3/5 · Loading the embedding model (about 90 MB)…")
+with section("prepare embedding model"):
+    embedder = SentenceTransformer(EMB_MODEL)
+print("4/5 · Loading the reranker (about 90 MB)…")
+with section("prepare reranker"):
+    reranker = CrossEncoder(CE_MODEL)
+print("5/5 · Loading the answer model (about 700 MB)…")
+with section("prepare generation model"):
+    _gen_tokenizer = AutoTokenizer.from_pretrained(LOCAL_MODEL)
+    _gen_model = AutoModelForCausalLM.from_pretrained(LOCAL_MODEL).float()
+
+def generate_local(prompt, max_new_tokens=120):
+    messages = [{"role": "user", "content": prompt}]
+    inputs = _gen_tokenizer.apply_chat_template(messages, return_tensors="pt", add_generation_prompt=True)
+    input_ids = inputs if torch.is_tensor(inputs) else inputs["input_ids"]
+    out = _gen_model.generate(input_ids, max_new_tokens=max_new_tokens, do_sample=False)
+    return _gen_tokenizer.decode(out[0][input_ids.shape[1]:], skip_special_tokens=True).strip()
+
+print("\nReady — packages, sample PDF, and all three models are loaded.")
+print("Continue to section 1. The default workshop path will not download anything else.")
 """)
 
 # fixture data, generated from fixture.py — do not hand-edit, re-run build_notebook.py
@@ -108,42 +159,11 @@ demos_literal = json.dumps(
     indent=4,
 )
 code(f"""
-# ---- fixture data, generated from sample/fixture.py by build_notebook.py ----
-# (measured against real MiniLM + a real cross-encoder in Phase 0 — see
-# sample/probe-demos.py. Don't hand-edit these; regenerate the notebook instead.)
+# Twenty questions paired with the sections that answer them. Section 10 uses
+# these known answers to measure retrieval instead of judging it by feel.
 GOLD_SET = {gold_set_literal}
 
 DEMOS = {demos_literal}
-""")
-
-code(r"""
-# ---- shared utilities, defined once here so skipping sections 6-8 doesn't
-# break sections 9-11, which all depend on at least one of these ----
-def tok(s):
-    return re.findall(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*", s.lower())
-
-LOCAL_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"
-_gen_tokenizer = None
-_gen_model = None
-
-def generate_local(prompt, max_new_tokens=120):
-    global _gen_tokenizer, _gen_model
-    if _gen_model is None:
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        import torch
-        with section("load local generation model (first use)"):
-            _gen_tokenizer = AutoTokenizer.from_pretrained(LOCAL_MODEL)
-            try:
-                # transformers >= 5 renamed this; Colab may still ship a 4.x
-                _gen_model = AutoModelForCausalLM.from_pretrained(LOCAL_MODEL, dtype=torch.float32)
-            except TypeError:
-                _gen_model = AutoModelForCausalLM.from_pretrained(LOCAL_MODEL, torch_dtype=torch.float32)
-    import torch
-    messages = [{"role": "user", "content": prompt}]
-    inputs = _gen_tokenizer.apply_chat_template(messages, return_tensors="pt", add_generation_prompt=True)
-    input_ids = inputs if torch.is_tensor(inputs) else inputs["input_ids"]
-    out = _gen_model.generate(input_ids, max_new_tokens=max_new_tokens, do_sample=False)
-    return _gen_tokenizer.decode(out[0][input_ids.shape[1]:], skip_special_tokens=True).strip()
 """)
 
 # ============================================================ 1. Two clocks
@@ -172,27 +192,9 @@ bolted on at the end.
 """)
 
 code(r"""
-import urllib.request
 import pypdf
 
-PDF_URL = "https://akshaykumar-1729.github.io/rag-talk/sample/aeronote-manual.pdf"
-PDF_PATH = "aeronote-manual.pdf"
-
-import os
-
 with section("load"):
-    try:
-        urllib.request.urlretrieve(PDF_URL, PDF_PATH)
-    except Exception as e:
-        if not os.path.exists(PDF_PATH):
-            raise RuntimeError(
-                f"Couldn't download the sample PDF from {PDF_URL}, and there's no "
-                f"local copy to fall back on. If the venue wifi is the problem, get "
-                f"a copy of aeronote-manual.pdf onto this machine (a USB stick works) "
-                f"and re-run this cell — it'll pick up the local file automatically."
-            ) from e
-        print("Download failed — using the copy already on disk instead.")
-
     reader = pypdf.PdfReader(PDF_PATH)
     pages = [(i + 1, page.extract_text()) for i, page in enumerate(reader.pages)]
 
@@ -272,8 +274,6 @@ def strip_furniture(pages):
             line = line.strip()
             if not line:
                 continue
-            # a table runs from its header cell to the next heading; extraction
-            # left us one cell per line, so there is no row structure to use
             if in_table:
                 if SECTION_LINE.match(line) or CHAPTER_LINE.match(line):
                     in_table = False
@@ -283,12 +283,12 @@ def strip_furniture(pages):
                 in_table = True
                 dropped.append((page_num, line, "table cell")); continue
 
-            if line == MASTHEAD:                 dropped.append((page_num, line, "masthead"))
-            elif RUNNING_HEAD.match(line):       dropped.append((page_num, line, "running head"))
-            elif FOOTER in line:                 dropped.append((page_num, line, "footer"))
-            elif FOLIO.match(line):              dropped.append((page_num, line, "folio"))
-            elif FIG_CAPTION.match(line):        dropped.append((page_num, line, "figure caption"))
-            else:                                kept.append((page_num, line))
+            if line == MASTHEAD:                     dropped.append((page_num, line, "masthead"))
+            elif RUNNING_HEAD.match(line):           dropped.append((page_num, line, "running head"))
+            elif FOOTER in line:                     dropped.append((page_num, line, "footer"))
+            elif FOLIO.match(line):                  dropped.append((page_num, line, "folio"))
+            elif FIG_CAPTION.match(line):            dropped.append((page_num, line, "figure caption"))
+            else:                                    kept.append((page_num, line))
     return kept, dropped
 
 with section("clean"):
@@ -334,8 +334,8 @@ chunk that lost the sentence explaining what it was about.
 """)
 
 code(r"""
-def chunk_by_section(pages):
-    body_lines, _ = strip_furniture(pages)
+def chunk_by_section(pages, clean=strip_furniture):
+    body_lines, _ = clean(pages)
     chunks, current = [], None
     expect_title_tail = False
     for page_num, line in body_lines:
@@ -383,16 +383,18 @@ md(r"""
 Every chunk becomes a vector. Questions get embedded into the *same* space
 with the *same* model — that shared space is the entire reason distance
 between two vectors means anything.
+
+The left map compresses 384 dimensions into two, so it is useful for seeing
+clusters but cannot preserve every distance. Chapter colours reveal broad
+neighbourhoods; the rings and lines mark the query's three nearest chunks.
+The bars on the right keep the real 384-dimensional similarity scores — those
+are the values retrieval actually ranks.
 """)
 
 code(r"""
-from sentence_transformers import SentenceTransformer
 import numpy as np
 
-EMB_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-
 with section("embed"):
-    embedder = SentenceTransformer(EMB_MODEL)
     chunk_texts = [c["full"] for c in chunks]
     chunk_embeddings = embedder.encode(chunk_texts, normalize_embeddings=True, show_progress_bar=False)
 
@@ -400,23 +402,42 @@ print(f"{chunk_embeddings.shape[0]} chunks embedded into {chunk_embeddings.shape
 """)
 
 code(r"""
-# a look at the space — same idea as the embeddings tab's map
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 
 demo_query = DEMOS["vocab_mismatch"]["query"]
 query_vec = embedder.encode([demo_query], normalize_embeddings=True)[0]
+similarities = chunk_embeddings @ query_vec
+nearest = np.argsort(-similarities)[:3]
 
 pca = PCA(n_components=2)
 points_2d = pca.fit_transform(np.vstack([chunk_embeddings, query_vec]))
 chunk_pts, query_pt = points_2d[:-1], points_2d[-1]
+chapters = [int(c["num"].split(".")[0]) for c in chunks]
 
-plt.figure(figsize=(7, 6))
-plt.scatter(chunk_pts[:, 0], chunk_pts[:, 1], c="#7a8ba6", s=40, label="chunks")
-plt.scatter(*query_pt, c="#e0663d", s=140, marker="*", label="query", zorder=5)
-plt.annotate(f'"{demo_query}"', query_pt, textcoords="offset points", xytext=(8, 8), fontsize=9)
-plt.title("51 chunks + one query, projected to 2D")
-plt.legend()
+fig, (space, ranks) = plt.subplots(1, 2, figsize=(13, 5))
+space.scatter(chunk_pts[:, 0], chunk_pts[:, 1], c=chapters, cmap="tab20", s=42, alpha=.75)
+space.scatter(*query_pt, c="#e4572e", s=180, marker="*", zorder=4)
+for i in nearest:
+    space.plot([query_pt[0], chunk_pts[i, 0]], [query_pt[1], chunk_pts[i, 1]],
+               color="#e4572e", linewidth=.8, alpha=.55)
+    space.scatter(*chunk_pts[i], facecolors="none", edgecolors="#e4572e", s=130, linewidths=2)
+    space.annotate(f'§{chunks[i]["num"]}', chunk_pts[i], xytext=(5, 5),
+                   textcoords="offset points", fontsize=9, weight="bold")
+variance = pca.explained_variance_ratio_.sum()
+space.set_title(f"Flattened map: 2 of 384 dimensions\nonly {variance:.0%} of the variance")
+space.set_xlabel("Related chapters tend to cluster; lines mark the top 3")
+
+order = np.argsort(similarities)[-10:]
+labels = [f'§{chunks[i]["num"]}' for i in order]
+colors = ["#e4572e" if i in nearest else "#7a8ba6" for i in order]
+ranks.barh(labels, similarities[order], color=colors)
+ranks.set_title("Actual similarity in all 384 dimensions")
+ranks.set_xlabel("cosine similarity")
+ranks.set_xlim(0, max(.4, similarities[nearest[0]] * 1.12))
+
+fig.suptitle(f'Query: "{demo_query}"', fontsize=13, weight="bold")
+fig.tight_layout()
 plt.show()
 """)
 
@@ -451,8 +472,8 @@ REFUSAL_THRESHOLD = 0.35
 top_score = results[0][1]
 print(f"\nTop score {top_score:.3f} — this is what 'the document doesn't answer it' "
       f"looks like for real: not a clean zero, just the bottom of the ranking and "
-      f"under a threshold ({REFUSAL_THRESHOLD}). That threshold is what section 9's "
-      f"refusal check uses.")
+      f"under a threshold ({REFUSAL_THRESHOLD}). Section 11 uses that threshold to "
+      f"flag answers that need checking.")
 """)
 
 md(r"""
@@ -473,13 +494,13 @@ for c, score in results:
 top = results[0][0]
 shares_words = bool(re.search(r"\b(battery|batteries|charge[sd]?|charging)\b", top["text"], re.I))
 print(f"\nTop hit's own text never says 'battery' or 'charge': "
-      f"{'FALSE — check the fixture' if shares_words else 'confirmed'}. "
+      f"{'it does share one of those words' if shares_words else 'confirmed'}. "
       f"Dense search bridged that gap on meaning alone.")
 """)
 
 # ============================================================ 6. Hybrid
 md(r"""
-## 6 · Keyword search + fusion *(safe to skip if you're short on time)*
+## 6 · Keyword search + fusion
 
 Here's an honest correction to Part 1: the lab's toy showed keyword search
 beating semantic search on an exact error code (`E-42`). **Real embeddings
@@ -541,7 +562,7 @@ for c, s in fused[:5]:
 
 # ============================================================ 7. Rerank
 md(r"""
-## 7 · Rerank *(safe to skip if you're short on time)*
+## 7 · Rerank
 
 First-stage retrieval (dense or hybrid) is fast but blunt — it embeds the
 question and each chunk *separately* and never lets them interact, so it
@@ -551,13 +572,6 @@ slow to run over a whole corpus; perfect for reordering a shortlist of five.
 """)
 
 code(r"""
-from sentence_transformers import CrossEncoder
-
-CE_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-
-with section("rerank: load cross-encoder"):
-    reranker = CrossEncoder(CE_MODEL)
-
 d = DEMOS["rerank"]
 shortlist = dense_retrieve(d["query"], k=5)
 print(f'Q: "{d["query"]}"  (the real answer is §{d["correct"]})\n')
@@ -579,7 +593,7 @@ for (c, _), s in reordered:
 
 # ============================================================ 8. Contextual retrieval
 md(r"""
-## 8 · Contextual retrieval — give a chunk its document back *(safe to skip)*
+## 8 · Contextual retrieval — give a chunk its document back
 
 Chunking has a cost: a chunk gets torn out of its document and can lose what
 it was *about*. Here's the exact case from the lab, reproduced with real
@@ -617,9 +631,9 @@ print(f"  {s_ctx:.3f}  now clears the generic chunk by {s_ctx - s_parent:.3f}")
 md(r"""
 Anthropic's actual technique generates that one-line context with an LLM, per
 chunk, once at indexing time — cheap with prompt caching, and it never touches
-query time. Running it live for all 51 chunks would take longer than this
-session has; here it is live on three, using the same small model section 9
-uses for answers. **Watch the quality vary between the three** — a model this
+query time. On this free CPU, each blurb took about 14 seconds: all 51 would
+take roughly 12 minutes. Here it is live on three, using the same small model
+section 9 uses for answers. **Watch the quality vary between the three** — a model this
 small is inconsistent at "describe what this is about" even though it's fine
 at the fusion math and the reranking in sections 6–7. That's not a bug in the
 notebook; it's the same honest tradeoff as section 9's local generation.
@@ -642,10 +656,18 @@ md(r"""
 ## 9 · Generate — with citations
 
 Same question, answered two ways: from the model's memory, then from what
-retrieval actually found. Every answer names the page it came from.
+retrieval actually found. The page citation comes from the retriever's metadata,
+so the system can show its source even when the small model forgets to include
+`(p. N)` in its wording.
 """)
 
 code(r"""
+if not all(name in globals() for name in ("embedder", "reranker", "_gen_model", "generate_local")):
+    raise RuntimeError(
+        "The notebook is not prepared yet — run the first code cell at the very top, "
+        "then come back to section 9."
+    )
+
 def build_prompt(query, retrieved):
     ctx = "\n".join(f'Excerpt from page {c["page"]}: "{c["text"]}"' for c, _ in retrieved)
     return (
@@ -655,7 +677,6 @@ def build_prompt(query, retrieved):
     )
 
 def generate_api(prompt):
-    import os
     try:
         from google.colab import userdata
         api_key = userdata.get("ANTHROPIC_API_KEY")
@@ -750,12 +771,10 @@ each stage you just built.
 
 code(r"""
 def hit_rate_at_k(retrieve_fn, k=3):
-    hits = 0
-    for query, correct in GOLD_SET:
-        results = retrieve_fn(query, k)
-        if any(c["num"] == correct for c, _ in results):
-            hits += 1
-    return hits / len(GOLD_SET)
+    return sum(
+        any(c["num"] == correct for c, _ in retrieve_fn(query, k))
+        for query, correct in GOLD_SET
+    ) / len(GOLD_SET)
 
 def hybrid_retrieve(query, k=3):
     d_hits = dense_retrieve(query, k=8)
@@ -763,28 +782,35 @@ def hybrid_retrieve(query, k=3):
     return rrf_fuse(d_hits, b_hits)[:k]
 
 def reranked_retrieve(query, k=3):
-    shortlist = dense_retrieve(query, k=6)
+    shortlist = hybrid_retrieve(query, k=6)
     pairs = [(query, c["full"]) for c, _ in shortlist]
     scores = reranker.predict(pairs)
     reordered = sorted(zip(shortlist, scores), key=lambda x: -x[1])
     return [(c, float(s)) for (c, _), s in reordered[:k]]
 
-# section 6 (hybrid) and 7 (reranking) are marked skippable — this stays
-# honest about that instead of crashing if you skipped them
-with section("evaluate"):
-    scores = {"semantic only": hit_rate_at_k(dense_retrieve)}
-    if "bm25_retrieve" in globals() and "rrf_fuse" in globals():
-        scores["hybrid (dense + BM25)"] = hit_rate_at_k(hybrid_retrieve)
-    else:
-        print("(skipping hybrid — section 6 wasn't run)")
-    if "reranker" in globals():
-        scores["hybrid, reranked"] = hit_rate_at_k(reranked_retrieve)
-    else:
-        print("(skipping reranked — section 7 wasn't run)")
+RERANKED_LABEL = "hybrid, reranked"
 
-for name, score in scores.items():
-    bar = "#" * int(score * 40)
-    print(f"{name:24s} {score:.2f}  {bar}")
+def retrieval_metrics(retrieve_fn):
+    ranks = []
+    for query, correct in GOLD_SET:
+        ids = [c["num"] for c, _ in retrieve_fn(query, len(chunks))]
+        ranks.append(ids.index(correct) + 1 if correct in ids else float("inf"))
+    return (
+        sum(r == 1 for r in ranks) / len(ranks),
+        sum(r <= 3 for r in ranks) / len(ranks),
+        sum(0 if r == float("inf") else 1 / r for r in ranks) / len(ranks),
+    )
+
+with section("evaluate"):
+    scores = {
+        "semantic only": retrieval_metrics(dense_retrieve),
+        "hybrid (dense + BM25)": retrieval_metrics(hybrid_retrieve),
+        RERANKED_LABEL: retrieval_metrics(reranked_retrieve),
+    }
+
+print(f"{'stage':24s}  hit@1  hit@3  Mean reciprocal rank")
+for name, (hit1, hit3, mrr) in scores.items():
+    print(f"{name:24s}   {hit1:.2f}    {hit3:.2f}          {mrr:.2f}")
 """)
 
 md(r"""
@@ -793,9 +819,11 @@ bug.** RRF fusion isn't a strict upgrade on every single query — it trades a
 few semantic wins for the keyword/identifier robustness you saw in section 6
 (the versioned-changelog case dense alone gets wrong). On a 20-question set
 that trade can show up as a small dip before reranking recovers it.
-Reranking is the stage actually guaranteed to only help, because it looks at
-the shortlist's real content instead of blending two rankings blind. That's
-why production systems run all three stages rather than picking one.
+Here, reranking recovers the lost result because it reads each shortlisted
+chunk beside the question. The hit@1 and mean reciprocal rank columns show
+something hit@3 hides: how often the right answer actually reaches the top.
+Production systems measure each stage because none is automatically better
+on every dataset.
 
 That's the retrieval half. The generation half asks a different question —
 not "did we find the right chunk" but "does the answer only claim things the
@@ -867,7 +895,6 @@ def load_user_pdf():
     except ImportError:
         path = input("Not running in Colab — enter a local PDF path: ").strip()
 
-    import os
     size_mb = os.path.getsize(path) / (1024 * 1024)
     if size_mb > MAX_PDF_MB:
         raise ValueError(f"{path} is {size_mb:.1f} MB — keep it under {MAX_PDF_MB} MB.")
@@ -876,10 +903,9 @@ def load_user_pdf():
     user_pages = [(i + 1, p.extract_text()) for i, p in enumerate(reader.pages)]
     total_chars = sum(len(t) for _, t in user_pages)
     if total_chars < 50 * len(user_pages):
-        print("Warning: almost no text came out of this PDF — it's probably a scan "
-              "(a photo of pages, not real text). This pipeline needs real text; a "
-              "scanned PDF needs OCR first, which this notebook doesn't do. Falling "
-              "back to the sample manual so the rest of the notebook still works.")
+        print("This PDF appears to be a scan, so there is almost no searchable text. "
+              "OCR is outside this notebook; the sample Aeronote manual will be used "
+              "below instead of your upload.")
         return pages
     return user_pages
 
@@ -890,22 +916,54 @@ print(f"{len(user_pages)} pages loaded.")
 """)
 
 code(r"""
+FALLBACK_WORDS = 180
+FALLBACK_OVERLAP = 40
+
+def strip_generic(pages):
+    kept = [(n, line.strip()) for n, text in pages for line in text.split("\n")
+            if line.strip() and not FOLIO.match(line.strip())]
+    return kept, []
+
+def chunk_fixed(pages, words=FALLBACK_WORDS, overlap=FALLBACK_OVERLAP):
+    chunks = []
+    for page_num, text in pages:
+        tokens = text.split()
+        step = max(1, words - overlap)
+        for i in range(0, len(tokens), step):
+            piece = " ".join(tokens[i:i + words])
+            if piece.strip():
+                n = len(chunks) + 1
+                chunks.append({"num": str(n), "title": f"Section {n}", "page": page_num,
+                                "text": piece, "full": piece})
+            if i + words >= len(tokens):
+                break
+    return chunks
+
+def chunk_user_pdf(user_pages):
+    # Use headings only when they describe most of the document. Otherwise,
+    # reliable overlapping windows are safer than guessed structure.
+    total_chars = sum(len(t) for _, t in user_pages)
+    candidate = chunk_by_section(user_pages, clean=strip_generic)
+    covered_chars = sum(len(c["text"]) for c in candidate)
+    coverage = covered_chars / total_chars if total_chars else 0.0
+
+    if len(candidate) >= 3 and coverage >= 0.6:
+        print(f"Using section headings — found {len(candidate)} sections covering "
+              f"{coverage:.0%} of the text.")
+        return candidate
+
+    print(f"Section headings didn't fit this document ({len(candidate)} chunk(s), "
+          f"{coverage:.0%} of the text covered) — using {FALLBACK_WORDS}-word windows "
+          f"with {FALLBACK_OVERLAP}-word overlap instead.")
+    return chunk_fixed(user_pages)
+
 # re-run the whole offline pipeline on the new document
 with section("re-index user PDF"):
-    user_chunks = chunk_by_section(user_pages)
-    if not user_chunks:
-        # this document doesn't use "N.M Title" section numbers like the manual did —
-        # fall back to fixed-size chunking instead
-        FALLBACK_WORDS = 180
-        user_chunks = []
-        for page_num, text in user_pages:
-            words = text.split()
-            for i in range(0, len(words), FALLBACK_WORDS):
-                piece = " ".join(words[i:i + FALLBACK_WORDS])
-                if piece.strip():
-                    n = len(user_chunks) + 1
-                    user_chunks.append({"num": str(n), "title": f"Section {n}", "page": page_num,
-                                          "text": piece, "full": piece})
+    user_chunks = chunk_user_pdf(user_pages)
+    if len(user_chunks) < 2:
+        print("Warning: only 1 chunk came out of this document — retrieval needs "
+              "more than one chunk to have anything to search over. Try a longer "
+              "or more text-heavy PDF.")
     user_texts = [c["full"] for c in user_chunks]
     user_embeddings = embedder.encode(user_texts, normalize_embeddings=True, show_progress_bar=False)
 
@@ -922,46 +980,45 @@ def ask(query, k=3):
     text = generate_api(prompt) if GENERATION == "api" else generate_local(prompt, max_new_tokens=150)
     return text, retrieved
 
-# plain function — always works, no widget required
-# (swap this for a question about YOUR document once you've uploaded one —
-# broad questions like "what is this about" are the one thing chunk retrieval
-# is genuinely bad at, since no single chunk is "about" the whole document)
-answer_text, retrieved = ask("How much does it cost?")
+def source_note(retrieved):
+    pages = sorted({c["page"] for c, _ in retrieved})
+    confidence = " ⚠ LOW CONFIDENCE — check the cited pages." if retrieved[0][1] < REFUSAL_THRESHOLD else ""
+    return f"pages: {pages}{confidence}"
+
+MY_QUESTION = "How much does it cost?"  # ← change this to a question about your PDF
+answer_text, retrieved = ask(MY_QUESTION)
 print(answer_text)
-for c, score in retrieved:
-    print(f"  cited: page {c['page']}, §{c['num']} ({score:.2f})")
+print(source_note(retrieved))
 """)
 
 code(r"""
-# the chat box — a nicer front end for the same `ask()` above
-try:
-    import ipywidgets as widgets
-    from IPython.display import display, HTML
+import ipywidgets as widgets
+from IPython.display import display
 
-    history_box = widgets.Output()
-    input_box = widgets.Text(placeholder="Ask something about your document...", layout=widgets.Layout(width="80%"))
-    send_button = widgets.Button(description="Ask")
+history = widgets.Output()
+question = widgets.Text(placeholder="Ask something about your document...",
+                        layout=widgets.Layout(width="80%"))
+send = widgets.Button(description="Ask", button_style="primary")
+status = widgets.HTML("")
 
-    def on_send(_):
-        query = input_box.value.strip()
-        if not query:
-            return
-        input_box.value = ""
-        with history_box:
-            print(f"You: {query}")
-            answer_text, retrieved = ask(query)
-            print(f"Bot: {answer_text}")
-            pages_cited = sorted({c["page"] for c, _ in retrieved})
-            print(f"     (pages: {pages_cited})\n")
+def on_send(_):
+    query = question.value.strip()
+    if not query:
+        return
+    question.value = ""
+    question.disabled = send.disabled = True
+    status.value = "<i>Thinking… a small model on a free CPU takes about 10–20 seconds.</i>"
+    try:
+        text, retrieved = ask(query)
+        with history:
+            print(f"You: {query}\nBot: {text}\n     {source_note(retrieved)}\n")
+    finally:
+        status.value = ""
+        question.disabled = send.disabled = False
 
-    send_button.on_click(on_send)
-    # Enter-to-send without the deprecated .on_submit
-    input_box.continuous_update = False
-    input_box.observe(lambda change: on_send(None) if change["new"] else None, names="value")
-    display(widgets.HBox([input_box, send_button]), history_box)
-    print("Type a question and press Enter (or click Ask).")
-except Exception as e:
-    print(f"Widget UI unavailable ({e}) — use ask('your question') in a cell instead.")
+send.on_click(on_send)
+display(widgets.VBox([widgets.HBox([question, send]), status, history]))
+print("Type a question, then click Ask.")
 """)
 
 # ============================================================ 12. What we didn't build
@@ -996,6 +1053,42 @@ for name, dt in SECTION_TIMES.items():
 print(f"\ntotal measured: {sum(SECTION_TIMES.values()):.1f}s")
 """)
 
+# Pair every notebook section with the visual checkpoint projected beside it.
+# Section numbers are stable; raw cell indices are deliberately never shown.
+lab_for_section = {
+    1: ("00", "Pipeline"), 2: ("01", "The document"), 3: ("01", "The document"),
+    4: ("02", "Embeddings"), 5: ("03", "Retrieval"), 6: ("04", "Hybrid"),
+    7: ("05", "Reranking"), 8: ("06", "Contextual"), 9: ("07", "Generation"),
+    10: ("08", "Evaluation"), 11: ("09", "Your PDF"), 12: ("10", "Beyond"),
+}
+for cell in cells:
+    if cell.cell_type != "markdown":
+        continue
+    match = __import__("re").search(r"^## (\d+) ·", cell.source, __import__("re").M)
+    if not match:
+        continue
+    section_num = int(match.group(1))
+    lab_num, lab_title = lab_for_section[section_num]
+    cue = (
+        f"> **LAB {lab_num} · {lab_title}** — Watch the visual checkpoint first, "
+        "then run the code cells in this section and compare the outcome."
+    )
+    lines = cell.source.splitlines()
+    lines.insert(1, "\n" + cue)
+    cell.source = "\n".join(lines)
+
+# The evaluation tab's top-k scene uses this exact two-part question alongside
+# the live 20-question benchmark computed below.
+eval_query = fx.WORKSHOP_DEMOS["evaluation"]["top_k_query"]
+for cell in cells:
+    if cell.cell_type == "markdown" and cell.source.startswith("## 10 ·"):
+        cell.source += f'\n\nThe lab’s top-k scene asks: **“{eval_query}”**'
+        break
+
 nb["cells"] = cells
 nbf.write(nb, str(OUT))
 print(f"Wrote {OUT} ({len(cells)} cells)")
+
+# The copy-paste page is generated from this same list, so a student pasting from
+# rag-build.html and a student running rag-build.ipynb cannot be given different code.
+build_site.write(cells, paced="--paced" in sys.argv)

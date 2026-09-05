@@ -98,7 +98,7 @@ ok('chip A: § sync is #2 (the reranker lifts it from second)', chipA[1].tag ===
 const lexA = M.scoreAll('how do I get my notes onto my computer?', c => M.lexScore('how do I get my notes onto my computer?', c.text));
 ok('chip A: keyword does NOT also pick § display', lexA[0].tag !== '§ display', lexA[0].tag + ' ' + lexA[0].s.toFixed(2));
 
-console.log('\n== 5. tab 06 dense ordering must be unchanged ==');
+console.log('\n== 5. tab 04 dense ordering must be unchanged ==');
 ['battery life', 'E-42', 'export notes as PDF'].forEach(q => {
   console.log('  ' + q + '  →  ' + (rank(q).join('  |  ') || '— all zero'));
 });

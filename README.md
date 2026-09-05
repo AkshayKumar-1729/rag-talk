@@ -7,7 +7,8 @@ A language model answers from memory, so it sounds right even when it's wrong. R
 things up first**. This repo is that idea told three ways — a talk, a slow-motion walkthrough of the
 machinery, and a lab you can type your own questions into.
 
-**Everything here runs in a browser with no install, no sign-up, no API key and no network.**
+**The deck, film and lab run in a browser with no install, no sign-up, no API key and no network.**
+The Colab build downloads its Python packages and about 950 MB of model files in its first cell.
 
 ---
 
@@ -18,7 +19,8 @@ machinery, and a lab you can type your own questions into.
 | 🏠 **Start here** | [The three doors](https://akshaykumar-1729.github.io/rag-talk/) | pick where to begin |
 | 🎞 **The deck** | [rag-deck.html](https://akshaykumar-1729.github.io/rag-talk/rag-deck.html) | 16 slides · ~35 min |
 | 🎬 **The film** | [rag-pipeline.html](https://akshaykumar-1729.github.io/rag-talk/rag-pipeline.html) | 13 stages · ~10 min |
-| 🧪 **The lab** | [rag-lab.html](https://akshaykumar-1729.github.io/rag-talk/rag-lab.html) | 9 tabs · hands-on |
+| 🧪 **The lab** | [rag-lab.html](https://akshaykumar-1729.github.io/rag-talk/rag-lab.html) | 11 checkpoints · hands-on |
+| 🐍 **The snippets** | [rag-build.html](https://akshaykumar-1729.github.io/rag-talk/rag-build.html) | 13 cards · copy into Colab |
 
 ---
 
@@ -29,6 +31,7 @@ machinery, and a lab you can type your own questions into.
 | have never heard of any of this | **the deck** — three real disasters, then the fix |
 | want to see the actual mechanism | **the film** — a document becoming numbers, one stage at a time |
 | want to poke it until it breaks | **the lab** — type your own questions, watch retrieval fail |
+| want to build it yourself, cell by cell | **the snippets** — copy one card at a time into a blank Colab |
 | are building one for real | **[CONCEPTS.md](CONCEPTS.md)** — the concept spine |
 | want to teach this yourself | **[SPEAKER-NOTES.md](SPEAKER-NOTES.md)** — the run of show |
 
@@ -46,22 +49,38 @@ Thirteen stages, drawn one at a time. A real document is opened, parsed, cut int
 into numbers; a question is dropped into the same space, the nearest chunks come back, and you watch
 them get pasted into an actual prompt. `→` advances, `A` plays it through, `R` replays a stage.
 
-### 🧪 The lab — *nine tabs, and the order is the pipeline*
+### 🧪 The lab — *eleven checkpoints, synchronized with Colab*
 
 | | Tab | What it shows |
 |---|---|---|
 | 00 | Pipeline | the two clocks — indexing runs once, querying runs every question |
-| 01 | Embeddings | meaning as distance; *"how much does it cost?"* landing beside *price* with zero shared letters |
-| 02 | The document | the page as printed → the split → the index. Everything after searches *this* |
+| 01 | The document | the page as printed → extraction noise → chunks → the index |
+| 02 | Embeddings | the notebook's real 51-chunk map beside its 384-dimensional scores |
 | 03 | Retrieval | keyword search scoring **0.00** on a question the document plainly answers |
-| 04 | Reranking | a cross-encoder reordering the shortlist — and refusing when nothing is good enough |
-| 05 | Generation | the same question answered from memory, then from the retrieved page |
-| 06 | Hybrid | dense + BM25, fused with Reciprocal Rank Fusion |
-| 07 | Contextual | a chunk that lost its document, and the fix that gives it back |
+| 04 | Hybrid | the version-1.5 example measured in Python: dense + BM25 + RRF |
+| 05 | Reranking | a real cross-encoder promotes the pressure-level answer |
+| 06 | Contextual | the cracked-screen exception loses its policy, then gets it back |
+| 07 | Generation | E-42 answered from memory, then from retrieved evidence |
 | 08 | Evaluation | why measuring the answer alone hides a retrieval regression |
+| 09 | Your PDF | upload → extract → chunk → embed → ask with citations |
+| 10 | Beyond | the production layers after the workshop chatbot |
 
-Tabs 00–05 are the demo every tutorial gives you. **06–08 are what production actually requires** —
-that seam is the point of the whole session.
+Every checkpoint names the matching notebook section. The lab uses small visual examples to explain
+the mechanism; Colab runs the full model and prints the real rankings.
+
+### 🐍 The snippets — *the notebook, one card at a time*
+
+`rag-build.html` is the same thirteen sections as the notebook, laid out as copy-paste cards: a
+**Copy** button on every code block, the section's own explanation above it, and the lab checkpoint it
+pairs with in the corner. Paste them into a blank Colab and you build the pipeline yourself instead of
+pressing Run All.
+
+Card 0 installs everything and is always open, because every card below it fails without it.
+
+The page is generated from the notebook's cells, so a card can never offer code the notebook doesn't
+run — `verify-workshop-sync.py` compares them block for block. It carries all thirteen cards inside
+itself: no fetch, no CDN, nothing to load. During a live session it can be built to reveal cards at
+the pace of the room; see [SPEAKER-NOTES.md](SPEAKER-NOTES.md).
 
 ---
 
@@ -81,13 +100,15 @@ which open on GitHub so they render as pages instead of raw text.
 
 ---
 
-## 🔍 `verify-lab.js`
+## 🔍 Verification
 
 ```
-node verify-lab.js        # expect: all assertions passed
+node verify-lab.js                  # focus model and 2-D map
+python verify-workshop-sync.py      # 11 lab ↔ notebook checkpoints, and the snippet page
+python verify-notebook.py           # full headless notebook execution
 ```
 
-No dependencies. **Run it after editing the corpus in `rag-lab.html`.**
+`verify-lab.js` has no dependencies. **Run it after editing the focus corpus in `rag-lab.html`.**
 
 It pulls the document, the index and the map layout straight out of the HTML and checks the claims
 the lab makes on screen — that the index really contains no *warranty* (tab 03's entire argument
@@ -110,10 +131,11 @@ this script fails loudly if an edit to a chunk's concepts makes the picture star
 |---|---|
 | `index.html` | the landing page |
 | `rag-deck.html` · `rag-pipeline.html` · `rag-lab.html` | the three artifacts — each fully self-contained |
+| `rag-build.ipynb` | the Colab build-along, generated by `sample/build_notebook.py` |
 | `CONCEPTS.md` | the concept spine and the reading list |
 | `SPEAKER-NOTES.md` | the run of show — timings, what to say, what to cut |
 | `IMAGE-PROMPTS.md` | how the illustrations in `img/` were generated |
-| `verify-lab.js` | the assertions above |
+| `verify-lab.js` · `verify-workshop-sync.py` · `verify-notebook.py` | focus-model, synchronization and notebook checks |
 
 The three HTML files reference each other by name in visible on-screen text, so **don't rename
 them.** They must also stay beside `img/`.
@@ -127,10 +149,9 @@ them.** They must also stay beside `img/`.
 
 ## ⚠️ About the numbers
 
-**The lab does not call an embedding model.** It uses a hand-built concept map, which is what lets
-the whole thing run offline in a single file with zero dependencies. The **behaviours** are real and
-reproduce with real embeddings — vocabulary mismatch, blindness to identifiers, chunks losing their
-context, the recall/precision tradeoff. The **specific scores are illustrative.**
+**The lab does not call an embedding model in the browser.** It uses small, representative examples
+to make the mechanics legible on a projector. Colab is where the full 51-chunk index, models, scores
+and rankings run. The synchronization check keeps their questions, ordering and claims aligned.
 
 Likewise, the generation tab replays recorded output rather than calling a model live. A browser
 can't reach a model API directly — CORS blocks the request before it leaves the page — and shipping

@@ -249,3 +249,37 @@ GOLD_SET = [
     ("what's the difference between the base and premium bundle", "7.1"),
     ("does the screen protector change how it feels to write on", "12.3"),
 ]
+
+# ------------------------------------------------------- synchronized workshop flow
+# One contract for the visual lab and the Colab notebook. The lab numbers are the
+# order projected during the build-along; notebook sections stay numbered by their
+# executable dependency order.
+WORKSHOP_STAGES = [
+    {"id": "ov", "lab": "00", "notebook": "Prepare + §1", "title": "Pipeline"},
+    {"id": "chk", "lab": "01", "notebook": "§§2–3", "title": "The document"},
+    {"id": "emb", "lab": "02", "notebook": "§4", "title": "Embeddings"},
+    {"id": "ret", "lab": "03", "notebook": "§5", "title": "Retrieval"},
+    {"id": "hyb", "lab": "04", "notebook": "§6", "title": "Hybrid"},
+    {"id": "rrk", "lab": "05", "notebook": "§7", "title": "Reranking"},
+    {"id": "ctxr", "lab": "06", "notebook": "§8", "title": "Contextual"},
+    {"id": "gen", "lab": "07", "notebook": "§9", "title": "Generation"},
+    {"id": "ev", "lab": "08", "notebook": "§10", "title": "Evaluation"},
+    {"id": "own", "lab": "09", "notebook": "§11", "title": "Your PDF"},
+    {"id": "next", "lab": "10", "notebook": "§12", "title": "Beyond"},
+]
+
+WORKSHOP_DEMOS = {
+    "embedding": DEMO_VOCAB_MISMATCH,
+    "refusal": DEMO_WARRANTY,
+    "hybrid": DEMO_KEYWORD_WINS,
+    "rerank": DEMO_RERANK,
+    "contextual": DEMO_CONTEXT_LOSS,
+    "generation": {
+        "memory_query": "What does error E-42 mean on an Aeronote?",
+        "hard_query": "Can I return my Aeronote if the screen is cracked?",
+    },
+    "evaluation": {
+        "gold_questions": len(GOLD_SET),
+        "top_k_query": "How long do the Aeronote and its stylus last on a charge?",
+    },
+}

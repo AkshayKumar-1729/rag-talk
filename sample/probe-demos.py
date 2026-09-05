@@ -150,6 +150,14 @@ def check_warranty_score_band(dense_scores, failures):
         failures.append("warranty query score out of expected band")
 
 
+def _hit_at(ranks, k):
+    return sum(1 for r in ranks if r is not None and r <= k) / len(ranks)
+
+
+def _mrr(ranks):
+    return sum((1.0 / r) if r is not None else 0.0 for r in ranks) / len(ranks)
+
+
 def check_gold_set(dense_ranked, failures):
     ranks = []
     misses = []
@@ -158,7 +166,7 @@ def check_gold_set(dense_ranked, failures):
         ranks.append(r)
         if r is None or r > 5:
             misses.append((query, correct, r))
-    hit_at_3 = sum(1 for r in ranks if r is not None and r <= 3) / len(ranks)
+    hit_at_3 = _hit_at(ranks, 3)
     ok = hit_at_3 >= 0.7 and not misses
     print(
         f"{'PASS' if ok else 'FAIL'}  8. gold set — {len(GOLD_SET)} queries, "
@@ -168,6 +176,25 @@ def check_gold_set(dense_ranked, failures):
         print(f"       miss: '{q}' -> {c} ranked {r}")
     if not ok:
         failures.append("gold set below acceptable hit-rate")
+
+
+def report_gold_set_separation(dense_ranked, hybrid_ranked, reranked_ranked):
+    # hit-rate@3 pinned at 1.00 for both dense and hybrid on the first real run
+    # of this gold set — a ceiling that can't show section 10's own narration
+    # ("hybrid dips a little, reranking recovers it"). hit@1 and MRR are finer
+    # instruments; print them so the notebook's prose can be written to match
+    # whatever they actually show, instead of the ceiling metric.
+    print("\n   gold-set separation (informational, not a pass/fail gate):")
+    print(f"   {'stage':<24s}{'hit@1':>8s}{'hit@3':>8s}{'MRR':>8s}")
+    for name, ranked_fn in (
+        ("semantic only", dense_ranked),
+        ("hybrid (dense+BM25)", hybrid_ranked),
+        ("hybrid, reranked", reranked_ranked),
+    ):
+        ranks = [rank_of(correct, ranked_fn(query)) for query, correct in GOLD_SET]
+        print(
+            f"   {name:<24s}{_hit_at(ranks, 1):>8.2f}{_hit_at(ranks, 3):>8.2f}{_mrr(ranks):>8.2f}"
+        )
 
 
 # --------------------------------------------------------------------------- main
@@ -201,8 +228,26 @@ def main():
         order = np.argsort(-scores)
         return [nums[i] for i in order]
 
+    # Reciprocal Rank Fusion, k=60 — same constant and shape as the notebook's
+    # rrf_fuse, kept in lockstep so this probe measures what students see.
+    def hybrid_ranked(query, k=60):
+        d_hits = dense_ranked(query)[:8]
+        b_hits = bm25_ranked(query)[:8]
+        fused = {}
+        for lst in (d_hits, b_hits):
+            for rank, num in enumerate(lst, start=1):
+                fused[num] = fused.get(num, 0.0) + 1.0 / (k + rank)
+        return [num for num, _ in sorted(fused.items(), key=lambda kv: -kv[1])]
+
     print("Loading cross-encoder...")
     ce = CrossEncoder(CE_MODEL)
+
+    def reranked_ranked(query, shortlist_k=6):
+        shortlist_nums = hybrid_ranked(query)[:shortlist_k]
+        shortlist = [by_num(chunks, n) for n in shortlist_nums]
+        pairs = [(query, c["full"]) for c in shortlist]
+        scores = ce.predict(pairs)
+        return [shortlist_nums[i] for i in np.argsort(-scores)]
 
     print()
     failures = []
@@ -214,6 +259,7 @@ def main():
     check_context_loss(model, failures)
     check_warranty_score_band(dense_scores, failures)
     check_gold_set(dense_ranked, failures)
+    report_gold_set_separation(dense_ranked, hybrid_ranked, reranked_ranked)
 
     print()
     if failures:
