@@ -617,7 +617,6 @@ a.btn:hover{color:var(--ink)}
       </div>
       <div class="chips">
         <button class="chip" data-q="what's new in version 1.5">what's new in version 1.5 <span style="opacity:.6">· BM25 wins</span></button>
-        <button class="chip" data-q="export notes as PDF">export notes as PDF <span style="opacity:.6">· both agree</span></button>
       </div>
       <div class="hyb-grid">
         <div class="hyb-col">
@@ -1588,21 +1587,21 @@ const SpaceMap=(function(){
     const measured=WORKSHOP_SNAPSHOT.hybrid;
     if(measured&&q.toLowerCase()===measured.query.toLowerCase()){
       teachVotes(document.getElementById('hybSem'),[
-        {title:'Version 1.4',reason:'same release-note story'},
-        {title:'Version 1.6',reason:'same release-note story'},
+        {title:'Version 1.2',reason:'same release-note story'},
+        {title:'Version 1.3',reason:'same release-note story'},
         {title:'Version 1.5',reason:'right answer, but buried in the template'}
       ]);
       teachVotes(document.getElementById('hybLex'),[
         {title:'Version 1.5',reason:'exact token “1.5” lights up',win:true},
-        {title:'Version 1.4',reason:'nearby version token'},
-        {title:'Version 1.6',reason:'nearby version token'}
+        {title:'Version 1.3',reason:'nearby version token'},
+        {title:'Other exact term',reason:'a literal match outside the release notes'}
       ]);
       const fused=document.getElementById('hybFus');
       if(revealFusion){
         teachVotes(fused,[
           {title:'Version 1.5',reason:'dense #3 + keyword #1',votes:'two votes',win:true},
-          {title:'Version 1.4',reason:'dense #1 + keyword #2',votes:'two votes'},
-          {title:'Version 1.6',reason:'dense #2 + keyword #3',votes:'two votes'}
+          {title:'Version 1.3',reason:'dense #2 + keyword #2',votes:'two votes'},
+          {title:'Version 1.2',reason:'dense #1 only',votes:'one vote'}
         ]);
         document.getElementById('hybNote').innerHTML='<b>Follow the clue, not the number.</b> Meaning groups the look-alike release notes. The literal version breaks the tie. RRF rewards cards that both readers independently keep near the top.';
         return;
