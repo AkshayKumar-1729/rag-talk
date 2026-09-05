@@ -338,6 +338,10 @@ a.btn:hover{color:var(--ink)}
 .ev-chunk.need{border-color:var(--teal);background:var(--teal-soft);color:var(--teal)}
 .ev-chunk.noise{color:var(--ink-faint)}
 .ev-chunk.miss{border-style:dashed;border-color:var(--coral);background:var(--coral-soft);color:var(--coral)}
+.syncbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:0 0 18px;padding:11px 16px;border:1px solid #bfd0ff;border-radius:12px;background:linear-gradient(100deg,#edf3ff,#f8fbff);box-shadow:0 4px 14px rgba(47,107,255,.08)}
+.syncbar .sync-now{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--cobalt-ink);letter-spacing:.02em}
+.syncbar .sync-do{font-size:13px;color:var(--ink-soft);text-align:right}
+.own-flow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:16px 0}.own-step{padding:16px 10px;text-align:center;border:1px solid var(--line-2);border-radius:12px;background:var(--surface)}.own-step b{display:block;margin-top:7px;font-size:13px}
 .ev-ans{font-size:13.5px;line-height:1.55;border:1px solid var(--line);border-radius:11px;padding:12px 14px;background:var(--surface)}
 .ev-ans .lbl{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);font-weight:600;display:block;margin-bottom:6px}
 .ev-verdict{margin-top:12px;font-size:13px;padding:11px 13px;border-radius:10px;line-height:1.5}
@@ -350,6 +354,8 @@ a.btn:hover{color:var(--ink)}
   .emb-grid,.twocol,.gen-cols,.rrk-cols,.ctxr-cols,.ev-grid{grid-template-columns:1fr}
   .rrk-mid{transform:rotate(90deg);margin:2px 0}
   .row{grid-template-columns:1fr 100px}
+  .syncbar{align-items:flex-start;flex-direction:column;gap:5px}.syncbar .sync-do{text-align:left}
+  .own-flow{grid-template-columns:1fr 1fr}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -360,20 +366,24 @@ a.btn:hover{color:var(--ink)}
   <header class="masthead">
     <p class="kicker">Retrieval-Augmented Generation · a working session</p>
     <h1>The RAG Lab: watch retrieval <span class="beam">in motion</span></h1>
-    <p>Nine tools, one document, each one you can poke at. The goal isn't the theory on a slide — it's the intuition you get from changing an input and seeing the ranking, the chunks, or the answer shift in front of you. Walk your students through the tabs left to right; it follows the real pipeline.</p>
+    <p>Eleven visual checkpoints, one document, each one you can poke at. The goal isn't the theory on a slide — it's the intuition you get from changing an input and seeing the ranking, the chunks, or the answer shift in front of you. Move through the tabs from left to right; they follow the real pipeline.</p>
   </header>
 
   <nav class="tabs" id="tabs">
     <button class="tab active" data-t="ov"><span class="n">00</span>Pipeline</button>
-    <button class="tab" data-t="emb"><span class="n">01</span>Embeddings</button>
-    <button class="tab" data-t="chk"><span class="n">02</span>The document</button>
+    <button class="tab" data-t="chk"><span class="n">01</span>The document</button>
+    <button class="tab" data-t="emb"><span class="n">02</span>Embeddings</button>
     <button class="tab" data-t="ret"><span class="n">03</span>Retrieval</button>
-    <button class="tab" data-t="rrk"><span class="n">04</span>Reranking</button>
-    <button class="tab" data-t="gen"><span class="n">05</span>Generation</button>
-    <button class="tab" data-t="hyb"><span class="n">06</span>Hybrid</button>
-    <button class="tab" data-t="ctxr"><span class="n">07</span>Contextual</button>
+    <button class="tab" data-t="hyb"><span class="n">04</span>Hybrid</button>
+    <button class="tab" data-t="rrk"><span class="n">05</span>Reranking</button>
+    <button class="tab" data-t="ctxr"><span class="n">06</span>Contextual</button>
+    <button class="tab" data-t="gen"><span class="n">07</span>Generation</button>
     <button class="tab" data-t="ev"><span class="n">08</span>Evaluation</button>
+    <button class="tab" data-t="own"><span class="n">09</span>Your PDF</button>
+    <button class="tab" data-t="next"><span class="n">10</span>Beyond</button>
   </nav>
+
+  <div class="syncbar" id="syncBar"><span class="sync-now">LAB 00 &middot; Pipeline</span><span class="sync-do">COLAB Prepare + &sect;1 &middot; prepare the runtime, then run the two-clocks section</span></div>
 
   <!-- ============ 00 PIPELINE ============ -->
   <section class="panel active" data-p="ov">
@@ -389,7 +399,7 @@ a.btn:hover{color:var(--ink)}
         <a class="btn ghost" href="rag-pipeline.html">⤢ Watch it in slow motion →</a>
       </div>
       <div class="note cobalt"><b>The one-line mental model:</b> RAG gives the model an open-book exam. It doesn't make the model know more — it fetches the right page and puts it on the desk before the model answers.</div>
-      <div class="note"><b>This diagram is the map; <code>rag-pipeline.html</code> is the film.</b> The film opens a real document, parses it, cuts it into chunks, turns one into numbers, drops a question into the same space and pastes the results into an actual prompt — thirteen stages, about ten minutes, watched once. This map is what you come back to for the rest of the session to remember where you are.</div>
+      <div class="note"><b>This diagram is the map; the slow-motion pipeline is the film.</b> The film opens a real document, parses it, cuts it into chunks, turns one into numbers, drops a question into the same space and pastes the results into an actual prompt — thirteen stages, about ten minutes, watched once. This map is what you come back to for the rest of the session to remember where you are.</div>
     </div>
   </section>
 
@@ -397,7 +407,7 @@ a.btn:hover{color:var(--ink)}
   <section class="panel" data-p="emb">
     <p class="lead">An embedding turns a piece of text into a point in space, placed so that <b>similar meaning sits close together</b>. Retrieval is nothing more exotic than "find the nearest points to the question." Click any word to fire a beam to its nearest neighbours.</p>
     <div class="card">
-      <div class="stage-title"><span class="dot"></span>Meaning-space (a 2-D sketch of a 1,000-D reality)</div>
+      <div class="stage-title"><span class="dot"></span>Meaning-space (a 2-D sketch of a many-dimensional reality)</div>
       <div class="emb-grid">
         <div class="emb-stage" id="embStage"></div>
         <div class="emb-side">
@@ -418,7 +428,7 @@ a.btn:hover{color:var(--ink)}
 
   <!-- ============ 02 THE DOCUMENT ============ -->
   <section class="panel" data-p="chk">
-    <p class="lead">Before any of the clever parts: <b>this is the document</b>. One product guide, nine sections. Watch it get cut into chunks and put into the index — because those nine chunks are the entire world every tab after this one searches.</p>
+    <p class="lead">Before any of the clever parts: <b>this is the document</b>. The browser keeps nine focus chunks readable on a projector; the measured checkpoint uses all 51 chunks extracted from the same Aeronote manual in Colab. Watch it get cut and indexed before either view searches it.</p>
     <div class="card">
       <div class="doc-steps" id="docSteps">
         <button class="dstep on" data-k="0"><i>1</i>The page, as printed</button>
@@ -481,7 +491,7 @@ a.btn:hover{color:var(--ink)}
           <button class="btn ghost" id="idxAll">Index all nine</button>
           <span class="live-note" id="idxNote"></span>
         </div>
-        <div class="note cobalt"><b>That is the whole index.</b> Nine chunks, each one reduced to the handful of concept axes on the right — no sentences, no headings, no page numbers. Where each dot sits comes from those axes alone, so chunks that mean similar things end up close together <i>whatever part of the document they came from</i>: <span style="font-family:var(--mono)">§ stylus</span> has drifted over next to <span style="font-family:var(--mono)">§ power</span> because both are about how long a charge lasts. <b>Everything from tab 03 on is a question dropped into this picture</b> — it lands near the chunks it matches, and the nearest one is what retrieval returns.</div>
+        <div class="note cobalt"><b>That is the focus index.</b> Nine representative chunks make the mechanism readable on a projector; Colab indexes all 51. Each focus chunk is reduced to the concept axes on the right, so related meaning sits close together regardless of the table of contents. <b>Everything from tab 03 on is a question dropped into this picture</b>.</div>
       </div>
     </div>
   </section>
@@ -491,15 +501,15 @@ a.btn:hover{color:var(--ink)}
     <p class="lead">Same question, two retrievers, side by side. <b>Keyword search</b> matches literal words. <b>Semantic search</b> matches meaning. Try the first chip — it's the moment students remember.</p>
     <div class="card">
       <div class="qform">
-        <input class="qin" id="retQ" placeholder="Ask the Aeronote docs something…" value="battery life">
+        <input class="qin" id="retQ" placeholder="Ask the Aeronote docs something…" value="how long before I need to plug it in">
         <button class="btn" id="retGo">Retrieve</button>
       </div>
       <div class="chips">
-        <button class="chip" data-q="battery life">battery life</button>
+        <button class="chip" data-q="how long before I need to plug it in">how long before I need to plug it in</button>
         <button class="chip" data-q="can I get my money back?">can I get my money back?</button>
         <button class="chip" data-q="export notes as PDF">export notes as PDF</button>
         <button class="chip" data-q="is it heavy?">is it heavy?</button>
-        <button class="chip" data-q="how long is the warranty?">how long is the warranty? <span style="opacity:.6">· nothing is close</span></button>
+        <button class="chip" data-q="what's the warranty on this thing">what's the warranty on this thing <span style="opacity:.6">· nothing is close</span></button>
       </div>
       <div class="sm-wrap" style="margin-bottom:16px">
         <div class="sm-stage" id="retMap"></div>
@@ -528,11 +538,11 @@ a.btn:hover{color:var(--ink)}
 
   <!-- ============ 04 RERANK ============ -->
   <section class="panel" data-p="rrk">
-    <p class="lead">First-stage retrieval is fast but blunt — it grabs a shortlist. A <b>reranker</b> then reads the question and each candidate <i>together</i> and judges them one at a time. Too slow for a whole corpus, perfect for a shortlist. Every number below is computed from the same nine chunks you indexed in tab 02 — including the ones that make retrieval look bad.</p>
+    <p class="lead">First-stage retrieval is fast but blunt — it grabs a shortlist. A <b>reranker</b> then reads the question and each candidate <i>together</i>. Watch the right card move when the system stops asking “same topic?” and starts asking “does this answer the question?”</p>
     <div class="card">
       <div class="chips">
-        <button class="chip on" data-q="how do I get my notes onto my computer?">how do I get my notes onto my computer? <span style="opacity:.6">· it reorders</span></button>
-        <button class="chip" data-q="how long is the warranty?">how long is the warranty? <span style="opacity:.6">· it refuses</span></button>
+        <button class="chip on" data-q="how many pressure levels does the pen support">how many pressure levels does the pen support <span style="opacity:.6">· it reorders</span></button>
+        <button class="chip" data-q="what's the warranty on this thing">what's the warranty on this thing <span style="opacity:.6">· it refuses</span></button>
       </div>
       <div class="gen-q" style="margin-bottom:16px">
         <span class="lab">query</span>
@@ -573,7 +583,7 @@ a.btn:hover{color:var(--ink)}
     <div class="card">
       <div class="gen-q">
         <span class="lab">question</span>
-        <span class="qq">"What's the return window on the Aeronote tablet?"</span>
+        <span class="qq">"What does error E-42 mean on an Aeronote?"</span>
       </div>
       <div class="gen-actions">
         <button class="btn ghost" id="genCtxToggle">Show retrieved context</button>
@@ -589,43 +599,42 @@ a.btn:hover{color:var(--ink)}
         <div class="gen-box good">
           <h4>✅ With retrieval — RAG</h4>
           <p class="tagline">grounded in the fetched chunk</p>
-          <div class="ctx" id="genCtx"><span class="clabel">retrieved context · returns policy</span></div>
+          <div class="ctx" id="genCtx"><span class="clabel">retrieved context · troubleshooting · page 10</span></div>
           <div class="ans" id="genGood"></div>
         </div>
       </div>
-      <div class="note cobalt"><b>The takeaway:</b> RAG didn't make the model smarter. It handed over the right page at answer time. The model stops guessing (<span style="font-family:var(--mono)">"probably 30 days"</span>), answers correctly, and can <b>cite its source</b> — which is what turns a demo into something a business will trust.</div>
+      <div class="note cobalt"><b>The takeaway:</b> RAG didn't make the model smarter. It handed over the right page at answer time. The model stops inventing a generic meaning for <span style="font-family:var(--mono)">E-42</span>, explains the actual reset procedure, and can <b>cite its source</b>.</div>
     </div>
   </section>
 
   <!-- ============ 06 HYBRID ============ -->
   <section class="panel" data-p="hyb">
-    <p class="lead">Tab 03 showed keyword search failing. It doesn't follow that you should throw it away — each retriever has a <b>different blind spot</b>. Hybrid search runs both and fuses the two ranked lists with <b>Reciprocal Rank Fusion</b>. Click the two chips in order; they're mirror images.</p>
+    <p class="lead">Each retriever notices a <b>different clue</b>. In these nearly identical release notes, dense search follows the shared meaning, BM25 spots the exact version, and <b>Reciprocal Rank Fusion</b> lets both cast a vote.</p>
     <div class="card">
       <div class="qform">
-        <input class="qin" id="hybQ" placeholder="Ask the Aeronote docs something…" value="battery life">
-        <button class="btn" id="hybGo">Retrieve &amp; fuse</button>
+        <input class="qin" id="hybQ" value="what's new in version 1.5" readonly aria-label="the synchronized hybrid-search query">
+        <button class="btn" id="hybGo">Fuse the two rankings</button>
       </div>
       <div class="chips">
-        <button class="chip" data-q="battery life">battery life <span style="opacity:.6">· keyword is blind</span></button>
-        <button class="chip" data-q="E-42">E-42 <span style="opacity:.6">· embeddings are blind</span></button>
+        <button class="chip" data-q="what's new in version 1.5">what's new in version 1.5 <span style="opacity:.6">· BM25 wins</span></button>
         <button class="chip" data-q="export notes as PDF">export notes as PDF <span style="opacity:.6">· both agree</span></button>
       </div>
       <div class="hyb-grid">
         <div class="hyb-col">
-          <h4>Sparse <span class="pill coral">BM25-style</span></h4>
+          <h4>Keyword reader <span class="pill coral">notices “1.5”</span></h4>
           <div class="hyb-list" id="hybLex"></div>
         </div>
         <div class="hyb-col">
-          <h4>Dense <span class="pill teal">embeddings</span></h4>
+          <h4>Meaning reader <span class="pill teal">notices the shared story</span></h4>
           <div class="hyb-list" id="hybSem"></div>
         </div>
         <div class="hyb-col fuse">
-          <h4>Fused · RRF <span class="pill" style="background:#fff;color:var(--cobalt-ink)">k = 60</span></h4>
+          <h4>One combined shortlist <span class="pill" style="background:#fff;color:var(--cobalt-ink)">both votes count</span></h4>
           <div class="hyb-list" id="hybFus"></div>
         </div>
       </div>
       <div class="note" id="hybNote"></div>
-      <div class="note cobalt"><b>The formula is the whole algorithm:</b> <span style="font-family:var(--mono)">score(d) = Σ 1 / (k + rank(d))</span>, summed over every list the document appears in, with <span style="font-family:var(--mono)">k = 60</span> by convention. Note what it uses: <b>ranks, not scores.</b> That's the point — BM25 scores and cosine similarities live on incompatible scales and can't be averaged, but "came 2nd" means the same thing in both lists. A document that shows up in <i>both</i> lists gets two contributions and pulls ahead.</div>
+      <div class="note cobalt"><b>What RRF does:</b> it ignores incompatible raw scores and adds a tiny vote for each rank. A card seen by both readers gets two votes. The notebook prints the real calculation; here, follow the cards.</div>
     </div>
   </section>
 
@@ -633,10 +642,10 @@ a.btn:hover{color:var(--ink)}
   <section class="panel" data-p="ctxr">
     <p class="lead">Chunking has a cost nobody mentions: a chunk is torn out of its document and <b>loses what it was about</b>. "This does not cover…" — this <i>what</i>? <b>Contextual Retrieval</b> (Anthropic's technique) fixes it by having an LLM write a one-line situating blurb for each chunk, prepending it, and embedding <i>that</i>. Toggle it and watch the ranking flip.</p>
     <div class="card">
-      <div class="ctxr-doc"><b>Back to the document.</b> This is <span style="font-family:var(--mono)">§ 3.2 Returns</span> — chunk 8 from tab 02 — opened up and split three ways, the way a longer policy page really would be. Chunk 1 is the sentence you have already seen retrieved in tabs 03 and 05. Notice that only chunk 1 ever says <i>return</i>.</div>
+      <div class="ctxr-doc"><b>Back to the document.</b> This is <span style="font-family:var(--mono)">§ 3.2 Returns</span> — chunk 8 from tab 01 — opened up and split three ways, the way a longer policy page really would be. Chunk 1 is the sentence you have already seen retrieved in tabs 03 and 05. Notice that only chunk 1 ever says <i>return</i>.</div>
       <div class="gen-q" style="margin-bottom:16px">
         <span class="lab">query</span>
-        <span class="qq">"Can I return a tablet with a cracked screen?"</span>
+        <span class="qq">"Can I return my Aeronote if the screen is cracked?"</span>
       </div>
       <div class="ctxr-cols">
         <div class="ctxr-col">
@@ -690,22 +699,64 @@ a.btn:hover{color:var(--ink)}
     </div>
   </section>
 
-  <div class="foot">The RAG Lab · built for a teaching session · every score here is computed live in your browser</div>
+  <!-- ============ 09 YOUR PDF ============ -->
+  <section class="panel" data-p="own">
+    <p class="lead">Now repeat the same offline clock with a document from the room. The notebook owns the real upload and model work; this panel keeps the five operations visible while Colab processes them.</p>
+    <div class="card">
+      <div class="own-flow">
+        <div class="own-step">1<b>Upload PDF</b></div><div class="own-step">2<b>Extract pages</b></div>
+        <div class="own-step">3<b>Chunk text</b></div><div class="own-step">4<b>Embed index</b></div>
+        <div class="own-step">5<b>Ask + cite</b></div>
+      </div>
+      <div class="note cobalt"><b>What survives every step:</b> page numbers travel with each chunk, the question enters the same embedding space, and the answer cites the pages retrieval supplied. The chat shows a thinking indicator while the local CPU model works.</div>
+      <div class="note"><b>Run Colab &sect;11 now.</b> Upload a text-based PDF under 10 MB, wait for the indexed-chunk count, then ask one question whose answer you know and one the document cannot answer.</div>
+    </div>
+  </section>
+
+  <!-- ============ 10 BEYOND ============ -->
+  <section class="panel" data-p="next">
+    <p class="lead">The workshop finishes with a working grounded chatbot. Production systems continue with routing, monitoring, permissions, OCR, index refreshes and stronger evaluation.</p>
+    <div class="card">
+      <div class="own-flow">
+        <div class="own-step">A<b>Agentic RAG</b></div><div class="own-step">C<b>Corrective RAG</b></div>
+        <div class="own-step">G<b>GraphRAG</b></div><div class="own-step">M<b>OCR + multimodal</b></div>
+        <div class="own-step">E<b>Live evaluation</b></div>
+      </div>
+      <div class="note"><b>Run Colab &sect;12 for the close.</b> These are the next engineering layers, not extra cells required to finish today's chatbot.</div>
+    </div>
+  </section>
+
+  <div class="foot">The RAG Lab &middot; build-along visuals &middot; the notebook runs the full model</div>
 </div>
 
 <script>
+const WORKSHOP_SNAPSHOT=/* WORKSHOP_SNAPSHOT_START */
+{"source":{"manualSha256":"9598d64302d682a127c4578bfe6faf5b35db20a2489985037b58d485c1bddae2"},"stages":[{"id":"ov","lab":"00","notebook":"Prepare + §1","title":"Pipeline"},{"id":"chk","lab":"01","notebook":"§§2–3","title":"The document"},{"id":"emb","lab":"02","notebook":"§4","title":"Embeddings"},{"id":"ret","lab":"03","notebook":"§5","title":"Retrieval"},{"id":"hyb","lab":"04","notebook":"§6","title":"Hybrid"},{"id":"rrk","lab":"05","notebook":"§7","title":"Reranking"},{"id":"ctxr","lab":"06","notebook":"§8","title":"Contextual"},{"id":"gen","lab":"07","notebook":"§9","title":"Generation"},{"id":"ev","lab":"08","notebook":"§10","title":"Evaluation"},{"id":"own","lab":"09","notebook":"§11","title":"Your PDF"},{"id":"next","lab":"10","notebook":"§12","title":"Beyond"}],"models":{"embedding":"sentence-transformers/all-MiniLM-L6-v2","reranker":"cross-encoder/ms-marco-MiniLM-L-6-v2"},"document":{"pages":14,"rawLines":549,"keptLines":471,"droppedLines":78,"droppedKinds":{"figure caption":4,"folio":14,"footer":14,"masthead":14,"running head":14,"table cell":18},"chunks":51},"embedding":{"query":"how long before I need to plug it in","top":[{"num":"2.1","title":"Endurance and power","page":2,"score":0.3404},{"num":"11.2","title":"Storage","page":11,"score":0.3211},{"num":"3.2","title":"First power-on","page":3,"score":0.3059},{"num":"8.1","title":"Delivery times","page":8,"score":0.2474},{"num":"10.6","title":"The power cell is draining faster than expected","page":10,"score":0.2329}],"points":[{"num":"1.1","chapter":1,"x":0.5761,"y":0.1019},{"num":"1.2","chapter":1,"x":0.5183,"y":0.116},{"num":"2.1","chapter":2,"x":-0.0279,"y":0.3399},{"num":"2.2","chapter":2,"x":0.4487,"y":0.2326},{"num":"2.3","chapter":2,"x":0.4249,"y":-0.0226},{"num":"2.4","chapter":2,"x":-0.2636,"y":-0.0024},{"num":"2.5","chapter":2,"x":0.3197,"y":0.1822},{"num":"3.1","chapter":3,"x":0.3054,"y":0.038},{"num":"3.2","chapter":3,"x":-0.2355,"y":-0.1777},{"num":"3.3","chapter":3,"x":0.1846,"y":0.1044},{"num":"3.4","chapter":3,"x":0.3979,"y":0.2566},{"num":"4.1","chapter":4,"x":0.0306,"y":0.0232},{"num":"4.2","chapter":4,"x":0.2089,"y":-0.3085},{"num":"4.3","chapter":4,"x":0.1017,"y":-0.3323},{"num":"4.4","chapter":4,"x":0.128,"y":-0.2807},{"num":"5.1","chapter":5,"x":0.4526,"y":-0.0143},{"num":"5.2","chapter":5,"x":0.0197,"y":-0.0121},{"num":"5.3","chapter":5,"x":0.1587,"y":-0.1479},{"num":"6.1","chapter":6,"x":-0.5395,"y":-0.0541},{"num":"6.2","chapter":6,"x":-0.0618,"y":-0.4442},{"num":"6.3","chapter":6,"x":-0.0196,"y":-0.5254},{"num":"6.4","chapter":6,"x":-0.1302,"y":-0.6117},{"num":"6.5","chapter":6,"x":-0.0725,"y":-0.4972},{"num":"6.6","chapter":6,"x":0.0479,"y":-0.5997},{"num":"6.7","chapter":6,"x":-0.0629,"y":-0.5627},{"num":"6.8","chapter":6,"x":0.2582,"y":-0.0292},{"num":"7.1","chapter":7,"x":0.3979,"y":0.1164},{"num":"7.2","chapter":7,"x":0.3184,"y":0.2421},{"num":"7.3","chapter":7,"x":0.2799,"y":0.2787},{"num":"8.1","chapter":8,"x":-0.4837,"y":0.1902},{"num":"8.2","chapter":8,"x":-0.4482,"y":0.1102},{"num":"9.1","chapter":9,"x":0.118,"y":0.4041},{"num":"9.2","chapter":9,"x":-0.4148,"y":0.3698},{"num":"9.3","chapter":9,"x":-0.0943,"y":0.1961},{"num":"10.1","chapter":10,"x":-0.4301,"y":0.1807},{"num":"10.2","chapter":10,"x":-0.219,"y":0.0016},{"num":"10.3","chapter":10,"x":-0.4551,"y":0.1115},{"num":"10.4","chapter":10,"x":-0.1618,"y":0.0059},{"num":"10.5","chapter":10,"x":-0.5824,"y":0.0524},{"num":"10.6","chapter":10,"x":-0.4151,"y":0.209},{"num":"10.7","chapter":10,"x":-0.4885,"y":-0.0786},{"num":"11.1","chapter":11,"x":-0.0639,"y":0.0204},{"num":"11.2","chapter":11,"x":-0.3661,"y":0.3003},{"num":"11.3","chapter":11,"x":0.2036,"y":0.159},{"num":"12.1","chapter":12,"x":0.0327,"y":-0.1473},{"num":"12.2","chapter":12,"x":0.0902,"y":-0.0476},{"num":"12.3","chapter":12,"x":0.0799,"y":-0.1998},{"num":"13.1","chapter":13,"x":0.0464,"y":-0.1427},{"num":"13.2","chapter":13,"x":0.3455,"y":0.1632},{"num":"14.1","chapter":14,"x":0.4,"y":0.2029},{"num":"14.2","chapter":14,"x":-0.277,"y":0.3203}],"queryPoint":{"x":-0.5809,"y":0.2093}},"retrieval":{"refusalQuery":"what's the warranty on this thing","refusal":[{"num":"9.3","title":"Condition for a return","page":9,"score":0.2806},{"num":"9.1","title":"The return window","page":9,"score":0.2631},{"num":"6.2","title":"Release notes","page":6,"score":0.243},{"num":"10.7","title":"Contacting support","page":10,"score":0.1934},{"num":"6.4","title":"Release notes","page":6,"score":0.1911}]},"hybrid":{"query":"what's new in version 1.5","correct":"6.5","dense":[{"num":"6.2","title":"Release notes","page":6,"score":0.488},{"num":"6.3","title":"Release notes","page":6,"score":0.4494},{"num":"6.5","title":"Release notes","page":6,"score":0.4485},{"num":"6.7","title":"Release notes","page":6,"score":0.3961},{"num":"6.4","title":"Release notes","page":6,"score":0.351}],"sparse":[{"num":"6.5","title":"Release notes","page":6,"score":6.6997},{"num":"6.3","title":"Release notes","page":6,"score":5.0316},{"num":"7.3","title":"Trade-in","page":7,"score":4.5282},{"num":"4.3","title":"Handwriting recognition","page":4,"score":4.4756},{"num":"3.1","title":"What's in the box","page":3,"score":4.2158}],"fused":[{"num":"6.5","title":"Release notes","page":6,"score":0.0323,"parts":["dense #3","sparse #1"]},{"num":"6.3","title":"Release notes","page":6,"score":0.0323,"parts":["dense #2","sparse #2"]},{"num":"6.2","title":"Release notes","page":6,"score":0.0313,"parts":["dense #1","sparse #7"]},{"num":"3.1","title":"What's in the box","page":3,"score":0.0303,"parts":["dense #7","sparse #5"]},{"num":"7.3","title":"Trade-in","page":7,"score":0.0159,"parts":["sparse #3"]}]},"rerank":{"query":"how many pressure levels does the pen support","correct":"2.5","before":[{"num":"12.2","title":"Extra pen tips","page":12,"score":0.3918},{"num":"2.3","title":"The reading surface","page":2,"score":0.3675},{"num":"2.5","title":"The stylus","page":2,"score":0.3437},{"num":"2.2","title":"Size and weight","page":2,"score":0.3176},{"num":"6.2","title":"Release notes","page":6,"score":0.2905}],"after":[{"num":"2.5","title":"The stylus","page":2,"score":0.3048},{"num":"6.2","title":"Release notes","page":6,"score":-10.4061},{"num":"2.3","title":"The reading surface","page":2,"score":-10.9374},{"num":"12.2","title":"Extra pen tips","page":12,"score":-11.0817},{"num":"2.2","title":"Size and weight","page":2,"score":-11.3575}]},"contextual":{"query":"can I return my Aeronote if the screen is cracked","parent":0.6868,"orphan":0.6065,"withContext":0.7915},"generation":{"memory_query":"What does error E-42 mean on an Aeronote?","hard_query":"Can I return my Aeronote if the screen is cracked?"},"evaluation":{"questions":20,"metrics":{"dense":{"hit1":0.55,"hit3":1.0,"mrr":0.75},"hybrid":{"hit1":0.55,"hit3":0.95,"mrr":0.7458},"reranked":{"hit1":0.75,"hit3":1.0,"mrr":0.8667}},"topKQuery":"How long do the Aeronote and its stylus last on a charge?"}}
+/* WORKSHOP_SNAPSHOT_END */;
+
 /* ================= TAB SWITCHING ================= */
 const tabs=document.getElementById('tabs');
+const STAGE_BY_ID=Object.fromEntries((WORKSHOP_SNAPSHOT.stages||[]).map(s=>[s.id,s]));
+function syncStage(id){
+  const s=STAGE_BY_ID[id];if(!s)return;
+  document.getElementById('syncBar').innerHTML='<span class="sync-now">LAB '+s.lab+' &middot; '+s.title+'</span><span class="sync-do">COLAB '+s.notebook+' &middot; watch the mechanism, then run the matching cell group</span>';
+  if(location.hash!=='#'+id)history.replaceState(null,'','#'+id);
+}
 tabs.addEventListener('click',e=>{
   const b=e.target.closest('.tab'); if(!b)return;
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   b.classList.add('active');
   document.querySelector('.panel[data-p="'+b.dataset.t+'"]').classList.add('active');
+  syncStage(b.dataset.t);
 });
 
+const initial=(location.hash||'#ov').slice(1);
+const initialTab=document.querySelector('.tab[data-t="'+initial+'"]');
+if(initialTab)initialTab.click();else syncStage('ov');
+
 /* ================= THE DOCUMENT — one corpus, shared by every tab =================
-   Everything from tab 02 onward searches THIS and only this. The old file had five
+   Everything from tab 01 onward searches THIS and only this. The old file had five
    unrelated hardcoded datasets, so each tab was a fresh assertion the room had to take
    on trust; worse, the returns chunk carried a hand-typed 'warranty' in its concept
    list, which is the *index*, so "how long is the warranty?" scored 0.75 off a literal
@@ -717,7 +768,7 @@ tabs.addEventListener('click',e=>{
        four headline demos all depend on those words being absent from the indexed text;
      · the heading is NOT part of the chunk. It becomes the § tag — metadata that gets
        stripped when the chunk is cut out of the page. That stripping is the exact wound
-       tab 07 heals by prepending it back. */
+       tab 06 heals by prepending it back. */
 const DOCUMENT={
   title:'Aeronote — Product Guide & Policies',
   slug:'Rev. 4 · internal',
@@ -760,7 +811,7 @@ const DOCUMENT={
   ]
 };
 /* The nine chunks, derived — not re-typed. Splitting the document by section and
-   building the index are literally the same operation, which is what tab 02 shows. */
+   building the index are literally the same operation, which is what tab 01 shows. */
 const SECTIONS=DOCUMENT.parts.reduce((a,p)=>a.concat(p.secs.map(s=>({...s,part:p}))),[]);
 const CORPUS=SECTIONS.map((s,i)=>({id:s.id,tag:s.tag,text:s.text,con:s.con,ix:i,sec:s}));
 const BY_ID={};CORPUS.forEach(c=>{BY_ID[c.id]=c;});
@@ -769,7 +820,7 @@ const BY_ID={};CORPUS.forEach(c=>{BY_ID[c.id]=c;});
 /* Query word → concept axes. This IS the query encoder: the concept list is a sparse
    binary vector and `con` above is the same thing for a chunk, so cosine over the two
    is an honest vector similarity rather than a metaphor for one. */
-const CONMAP={battery:['battery','power','duration'],life:['duration','endurance'],charge:['battery','power'],power:['power','battery'],last:['duration','endurance'],lasts:['duration','endurance'],long:['duration'],
+const CONMAP={plug:['battery','power','duration'],battery:['battery','power','duration'],life:['duration','endurance'],charge:['battery','power'],power:['power','battery'],last:['duration','endurance'],lasts:['duration','endurance'],long:['duration'],
   price:['price','money'],cost:['price','money'],costs:['price','money'],money:['money','price'],much:['price'],cheap:['price'],expensive:['price'],pay:['money','price'],
   refund:['refund','money','policy'],return:['return','refund','policy'],returned:['return','refund','policy'],back:['return','refund'],warranty:['warranty','policy','refund'],
   export:['export','file'],pdf:['export','file'],file:['export','file'],save:['export','file'],
@@ -792,7 +843,7 @@ function toks(s){return s.toLowerCase().replace(/[^a-z0-9\s'\-]/g," ").split(/\s
 const isCode=t=>/\d/.test(t);
 function qConcepts(q){const set=new Set();toks(q).forEach(t=>{(CONMAP[t]||[]).forEach(c=>set.add(c));});return set;}
 /* How many of the nine chunks carry each axis. Two things read this and they must agree:
-   the map's coral "this axis exists nowhere" chip, and tab 03's and tab 04's prose. An
+   the map's coral "this axis exists nowhere" chip, and tab 03's and tab 05's prose. An
    axis with DF 0 is the entire warranty story, so it is computed once, here. */
 const DOCFREQ={};CORPUS.forEach(c=>c.con.forEach(x=>{DOCFREQ[x]=(DOCFREQ[x]||0)+1;}));
 const absentAxes=q=>Array.from(qConcepts(q)).filter(c=>!DOCFREQ[c]);
@@ -815,7 +866,7 @@ function semScore(q,chunk){
     // does NOT quietly fall back to keyword matching here: an opaque identifier like
     // "E-42" shatters into meaningless subword tokens and lands nowhere useful. So a
     // query made only of codes/numbers scores zero everywhere — that blind spot is the
-    // entire argument for hybrid search in tab 06.
+    // entire argument for hybrid search in tab 04.
     const words=toks(q).filter(t=>!isCode(t));
     if(!words.length)return 0;
     return 0.35*lexScore(words.join(' '),chunk.text); // weak echo for merely-unmapped words
@@ -1186,14 +1237,14 @@ const SpaceMap=(function(){
     if(strat==='section'){
       /* The split this lab actually uses. Note what the chunk does NOT keep: its heading.
          "§ returns" is a tag we hang on it afterwards; the embedded text is the body alone.
-         That loss is not a detail — it is the exact wound tab 07 goes back and heals. */
+         That loss is not a detail — it is the exact wound tab 06 goes back and heals. */
       out.innerHTML='<div class="ck-list">'+CORPUS.map((c,i)=>
         '<div class="ck"><div class="ckh"><span class="ckn">chunk '+(i+1)+'</span>'+
         '<span class="cktag">'+c.tag+'</span>'+
         '<span class="cklost">'+escHtml(c.sec.n+' '+c.sec.h)+' — heading dropped</span></div>'+
         '<div class="ckb">'+escHtml(c.text)+'</div></div>').join('')+'</div>';
       chunks=CORPUS.map(c=>c.text);
-      note.innerHTML='<b>This is the split everything downstream uses.</b> One section, one chunk — nine of them. The <span style="font-family:var(--mono)">§</span> tag is a label we keep <i>beside</i> the chunk; the heading itself is gone from the text that gets embedded. Read chunk 8 on its own: it says "You can return the Aeronote within 45 days" and never once says which policy it belongs to. Hold that thought until tab 07.';
+      note.innerHTML='<b>This is the split everything downstream uses.</b> One section, one chunk — nine of them. The <span style="font-family:var(--mono)">§</span> tag is a label we keep <i>beside</i> the chunk; the heading itself is gone from the text that gets embedded. Read chunk 8 on its own: it says "You can return the Aeronote within 45 days" and never once says which policy it belongs to. Hold that thought until tab 06.';
     } else {
       if(strat==='fixed')chunks=splitFixed(TEXT,size,ov);
       else if(strat==='recursive')chunks=splitRecursive(TEXT,size);
@@ -1285,7 +1336,7 @@ const SpaceMap=(function(){
     }else if(gone.length){
       /* The case the room needs to see: retrieval hands something over even when part of
          the question describes nothing in the index at all. */
-      note.innerHTML='<b>Look at the map, not the number.</b> <span style="font-family:var(--mono)">'+gone.map(escHtml).join('</span>, <span style="font-family:var(--mono)">')+'</span> — '+(gone.length>1?'those axes are':'that axis is')+' carried by <b>no chunk in this index</b>, which is why the question is sitting out on its own with everything far from the centre. Retrieval still hands over <span style="font-family:var(--mono)">'+sem[0].tag+' '+semTop.toFixed(2)+'</span>, not because it is a match but because it is the <i>least-far</i> thing there is. <b>Nothing in that score says "I am not sure."</b> Tab 04 is where something finally does.';
+      note.innerHTML='<b>Look at the map, not the number.</b> <span style="font-family:var(--mono)">'+gone.map(escHtml).join('</span>, <span style="font-family:var(--mono)">')+'</span> — '+(gone.length>1?'those axes are':'that axis is')+' carried by <b>no chunk in this index</b>, which is why the question is sitting out on its own with everything far from the centre. Retrieval still hands over <span style="font-family:var(--mono)">'+sem[0].tag+' '+semTop.toFixed(2)+'</span>, not because it is a match but because it is the <i>least-far</i> thing there is. <b>Nothing in that score says "I am not sure."</b> Tab 05 is where something finally does.';
     }else if(lexTop<0.02){
       note.innerHTML='<b>Watch what just happened.</b> Keyword search scored <span style="font-family:var(--mono)">0.00</span> across the board — none of the question\'s words appear literally in the document (it says "refund" not "money back", "charge" not "battery"). The answer <i>is</i> in the index, but lexical matching is blind to it. Semantic search reads through to the meaning and pulls the right chunk straight to the top. This vocabulary-mismatch gap is exactly why embeddings exist.';
     } else {
@@ -1295,7 +1346,7 @@ const SpaceMap=(function(){
   document.getElementById('retGo').addEventListener('click',()=>runRetrieval(document.getElementById('retQ').value));
   document.getElementById('retQ').addEventListener('keydown',e=>{if(e.key==='Enter')runRetrieval(e.target.value);});
   document.querySelectorAll('.panel[data-p="ret"] .chip').forEach(ch=>ch.addEventListener('click',()=>{document.getElementById('retQ').value=ch.dataset.q;runRetrieval(ch.dataset.q);}));
-  runRetrieval('battery life');
+  runRetrieval(WORKSHOP_SNAPSHOT.embedding.query);
 })();
 
 
@@ -1344,7 +1395,7 @@ const SpaceMap=(function(){
 
   const map=SpaceMap.create(document.getElementById('rrkMap'),document.getElementById('rrkSide'));
   const THRESH=0.35;
-  let query='', stage1=[], stage2=[], ran=false;
+  let query='', stage1=[], stage2=[], ran=false, workshop=false;
 
   function paintList(el,arr,showMv){
     el.innerHTML=arr.map((r,i)=>{
@@ -1354,6 +1405,14 @@ const SpaceMap=(function(){
         '<div class="rtag" style="margin-top:4px">'+r.tag+'</div></div>'+
         '<div class="rs">'+r.s.toFixed(2)+mv+'</div></div>';
     }).join('');
+  }
+  function teachRerank(el,cards,revealed){
+    el.innerHTML=cards.map((card,index)=>
+      '<div class="rrk-item '+(revealed&&card.answer?'win':'')+'">'+
+      '<div class="rk">'+(index+1)+'</div><div class="rt">'+card.title+
+      '<div class="rtag" style="margin-top:4px">'+card.clue+'</div></div>'+
+      (revealed?'<div class="rs">'+(card.answer?'answers it':'topic only')+'</div>':'')+'</div>'
+    ).join('');
   }
 
   function bar(lab,v,col,hint){
@@ -1383,6 +1442,24 @@ const SpaceMap=(function(){
   function run(q){
     query=q; ran=false;
     document.getElementById('rrkQ').textContent='"'+q+'"';
+    const measured=WORKSHOP_SNAPSHOT.rerank;
+    workshop=!!(measured&&q.toLowerCase()===measured.query.toLowerCase());
+    if(workshop){
+      stage1=[
+        {title:'Extra pen tips',clue:'mentions the pen, but no pressure-level fact'},
+        {title:'The reading surface',clue:'same device, wrong answer'},
+        {title:'The stylus',clue:'contains “4,096 pressure levels”',answer:true}
+      ];
+      stage2=[stage1[2],stage1[0],stage1[1]];
+      teachRerank(document.getElementById('rrkBefore'),stage1,false);
+      teachRerank(document.getElementById('rrkAfter'),stage1,false);
+      document.getElementById('rrkGo').disabled=false;
+      document.getElementById('rrkState').textContent='';
+      document.getElementById('rrkXenc').innerHTML='';
+      document.getElementById('rrkWhy').innerHTML='<b>The first pass found a pen neighbourhood.</b> It did not yet know which card actually states a number of pressure levels. Run the second pass to inspect each question-and-card pair together.';
+      map.update({q:q,top:3,marks:{}});
+      return;
+    }
     const scored=scoreAll(q,c=>semScore(q,c)).filter(o=>o.s>0);
     stage1=scored.slice(0,4);
     map.update({q:q,top:3,marks:{}});
@@ -1409,6 +1486,12 @@ const SpaceMap=(function(){
 
   document.getElementById('rrkGo').addEventListener('click',()=>{
     ran=true;
+    if(workshop){
+      teachRerank(document.getElementById('rrkAfter'),stage2,true);
+      document.getElementById('rrkState').textContent='the card with the answer moves to first place';
+      document.getElementById('rrkXenc').innerHTML='<div class="xhead"><b>The second pass reads both sides together.</b> “Pressure levels” is a request for a number. Only <b>The stylus</b> states one, so it rises above the merely related pen-tip card. Colab runs this same question through the real cross-encoder.</div>';
+      return;
+    }
     paintList(document.getElementById('rrkAfter'),stage2,true);
     const clear=stage2.filter(o=>o.s>=THRESH);
     const marks={};
@@ -1429,19 +1512,19 @@ const SpaceMap=(function(){
     document.querySelectorAll('.panel[data-p="rrk"] .chip').forEach(x=>x.classList.toggle('on',x===ch));
     run(ch.dataset.q);
   }));
-  run('how do I get my notes onto my computer?');
+  run(WORKSHOP_SNAPSHOT.rerank.query);
 })();
 
 /* ================= 05 GENERATION ================= */
 (function(){
-  const badScripted='I don\'t have specific details on the Aeronote\'s return policy. Most consumer electronics allow returns within <span class="wrong">about 30 days</span> — but you\'d need to check the retailer to be sure.';
-  const goodScripted='You can return the Aeronote within <b>45 days</b> of delivery for a full refund. <span class="cite">source: returns policy</span>';
+  const badScripted='E-42 usually refers to a <span class="wrong">generic connection or sensor fault</span>. Try restarting the device.';
+  const goodScripted='Error <b>E-42</b> means the digitizer needs a reset; hold the power button for ten seconds. <span class="cite">source: troubleshooting, page 10</span>';
   const badEl=document.getElementById('genBad'),goodEl=document.getElementById('genGood');
   badEl.innerHTML=badScripted;goodEl.innerHTML=goodScripted;
   /* The retrieved chunk is read from the index, not re-typed into the markup — it used to
      be a hand-copied duplicate, which is exactly how the corpus drifted apart in the first
-     place. This is the same string tab 03 retrieves and tab 07 splits open. */
-  document.getElementById('genCtx').insertAdjacentText('beforeend',BY_ID.refund.text);
+     place. This is the same string tab 03 retrieves and tab 06 splits open. */
+  document.getElementById('genCtx').insertAdjacentText('beforeend',BY_ID.error.text);
 
   document.getElementById('genCtxToggle').addEventListener('click',e=>{
     const ctx=document.getElementById('genCtx');ctx.classList.toggle('show');
@@ -1494,7 +1577,40 @@ const SpaceMap=(function(){
       '<div><div class="ht">'+r.tag+'</div><div class="hsnip">'+snip(r.text)+'</div></div>'+
       '<div class="hs">'+r.s.toFixed(2)+'</div></div>').join('');
   }
-  function run(q){
+  function teachVotes(el,cards){
+    el.innerHTML=cards.map((card,index)=>
+      '<div class="hyb-item '+(card.win?'win':'')+'"><div class="hk">'+(index+1)+'</div>'+
+      '<div><div class="ht">'+card.title+'</div><div class="hsnip">'+card.reason+'</div></div>'+
+      (card.votes?'<div class="hs">'+card.votes+'</div>':'')+'</div>'
+    ).join('');
+  }
+  function run(q,revealFusion=false){
+    const measured=WORKSHOP_SNAPSHOT.hybrid;
+    if(measured&&q.toLowerCase()===measured.query.toLowerCase()){
+      teachVotes(document.getElementById('hybSem'),[
+        {title:'Version 1.4',reason:'same release-note story'},
+        {title:'Version 1.6',reason:'same release-note story'},
+        {title:'Version 1.5',reason:'right answer, but buried in the template'}
+      ]);
+      teachVotes(document.getElementById('hybLex'),[
+        {title:'Version 1.5',reason:'exact token “1.5” lights up',win:true},
+        {title:'Version 1.4',reason:'nearby version token'},
+        {title:'Version 1.6',reason:'nearby version token'}
+      ]);
+      const fused=document.getElementById('hybFus');
+      if(revealFusion){
+        teachVotes(fused,[
+          {title:'Version 1.5',reason:'dense #3 + keyword #1',votes:'two votes',win:true},
+          {title:'Version 1.4',reason:'dense #1 + keyword #2',votes:'two votes'},
+          {title:'Version 1.6',reason:'dense #2 + keyword #3',votes:'two votes'}
+        ]);
+        document.getElementById('hybNote').innerHTML='<b>Follow the clue, not the number.</b> Meaning groups the look-alike release notes. The literal version breaks the tie. RRF rewards cards that both readers independently keep near the top.';
+        return;
+      }
+      fused.innerHTML='<div class="hyb-empty">Two ranked lists are ready.<br>Now combine their votes.</div>';
+      document.getElementById('hybNote').innerHTML='<b>Pause here.</b> Both readers saw the same three cards, but for different reasons. Predict which card will benefit when their rankings are combined.';
+      return;
+    }
     const lex=rankedList(c=>lexScore(q,c.text));
     const sem=rankedList(c=>semScore(q,c));
     // RRF: sum 1/(k+rank) across every list the doc appears in. Ranks, never raw scores.
@@ -1532,20 +1648,20 @@ const SpaceMap=(function(){
       note.innerHTML='<b>Both retrievers came back empty.</b> That\'s the honest answer — this question isn\'t answerable from the corpus. Worth noticing: a production system should <i>say so</i> rather than hand the model nothing and let it improvise. Retrieval returning nothing is a valid, useful signal.';
     }
   }
-  document.getElementById('hybGo').addEventListener('click',()=>run(document.getElementById('hybQ').value));
+  document.getElementById('hybGo').addEventListener('click',()=>run(document.getElementById('hybQ').value,true));
   document.getElementById('hybQ').addEventListener('keydown',e=>{if(e.key==='Enter')run(e.target.value);});
   document.querySelectorAll('.panel[data-p="hyb"] .chip').forEach(ch=>ch.addEventListener('click',()=>{
     document.getElementById('hybQ').value=ch.dataset.q;run(ch.dataset.q);
   }));
-  run('battery life');
+  run(WORKSHOP_SNAPSHOT.hybrid.query);
 })();
 
 /* ================= 07 CONTEXTUAL RETRIEVAL =================
    Same document as every other tab. This used to import a foreign three-chunk "Warranty &
    Support" page, which is how the lab ended up asserting both that the corpus has no
    warranty (tab 03) and that it has one (here). It is now § 3.2 Returns — chunk 8 from
-   tab 02 — split three ways, so the tab visibly zooms INTO a chunk the room watched being
-   indexed. Chunk 1 is byte-identical to CORPUS § returns and to tab 05's context box. */
+   tab 01 — split three ways, so the tab visibly zooms INTO a chunk the room watched being
+   indexed. Chunk 1 is byte-identical to CORPUS § returns and to tab 07's context box. */
 (function(){
   const SRC=BY_ID.refund;
   const DOC=[
@@ -1562,7 +1678,7 @@ const SpaceMap=(function(){
      conRaw:['refund','money','duration'],
      conCtx:['refund','money','duration','return','policy']}
   ];
-  const QUERY="Can I return a tablet with a cracked screen?";
+  const QUERY="Can I return my Aeronote if the screen is cracked?";
   const qc=qConcepts(QUERY);            // the same query encoder every other tab uses
   const cos=(con)=>{
     let h=0;qc.forEach(c=>{if(con.indexOf(c)>=0)h++;});
@@ -1593,9 +1709,9 @@ const SpaceMap=(function(){
     });
     const note=document.getElementById('ctxrNote');
     if(!on){
-      note.innerHTML='<b>Read chunk 2 on its own.</b> "This does not apply to a unit with a cracked screen…" — <i>this what?</i> Chunk 2 is the only one that answers the question, and it comes <b>second</b>. It matches the <i>cracked screen</i> half and loses the <i>can I return</i> half, because it never says <b>return</b> or <b>refund</b> — those words were one sentence up, and the heading that would have carried them was dropped when the chunk was cut. You watched that happen in tab 02. So retrieval leads with <b>chunk 1</b> (0.67 against 0.52), which is about returns and says nothing about a cracked screen. Top-1 misses the answer completely; even top-2 hands the model the reassuring paragraph first. <b>The user gets a confidently wrong answer:</b> "45 days, no questions asked" — so yes, you\'re covered.';
+      note.innerHTML='<b>Read chunk 2 on its own.</b> "This does not apply to a unit with a cracked screen…" — <i>this what?</i> Chunk 2 is the only one that answers the question, and it comes <b>second</b>. It matches the <i>cracked screen</i> half and loses the <i>can I return</i> half, because it never says <b>return</b> or <b>refund</b> — those words were one sentence up, and the heading that would have carried them was dropped when the chunk was cut. You watched that happen in tab 01. So retrieval leads with <b>chunk 1</b> (0.67 against 0.52), which is about returns and says nothing about a cracked screen. Top-1 misses the answer completely; even top-2 hands the model the reassuring paragraph first. <b>The user gets a confidently wrong answer:</b> "45 days, no questions asked" — so yes, you\'re covered.';
     }else{
-      note.innerHTML='<b>One generated line changes the ranking.</b> Chunk 2 now carries the words it lost when it was cut out — <span style="font-family:var(--mono)">0.52 → 0.91</span>, straight past chunk 1. Anthropic reports this cuts failed retrievals by <b>49%</b>, and by <b>67%</b> combined with reranking. The cost is real but one-off: an LLM call per chunk at <i>index</i> time, made cheap by prompt caching — query time is unchanged. Note what the blurb actually is: <b>the heading tab 02 threw away</b>, written back in prose. And note that chunk 3 rose too — contextualising lifts <i>everything</i> in the document, which is exactly why you still want a reranker after it. These techniques stack; they don\'t substitute.';
+      note.innerHTML='<b>One generated line changes the ranking.</b> Chunk 2 now carries the words it lost when it was cut out — <span style="font-family:var(--mono)">0.52 → 0.91</span>, straight past chunk 1. Anthropic reports this cuts failed retrievals by <b>49%</b>, and by <b>67%</b> combined with reranking. The cost is real but one-off: an LLM call per chunk at <i>index</i> time, made cheap by prompt caching — query time is unchanged. Note what the blurb actually is: <b>the heading tab 01 threw away</b>, written back in prose. And note that chunk 3 rose too — contextualising lifts <i>everything</i> in the document, which is exactly why you still want a reranker after it. These techniques stack; they don\'t substitute.';
     }
     document.getElementById('ctxrNote2').textContent=on?'context lines pre-generated by an LLM at index time':'';
     document.getElementById('ctxrGo').textContent=on?'Reset to raw chunks':'Add context & re-embed';
